@@ -89,15 +89,44 @@
     /* ── Cards ────────────────────────────────────────────────────── */
     .card {
       background: var(--card-bg); border: 1px solid var(--card-border);
-      border-radius: var(--radius); padding: .7rem 1rem;
-      display: flex; flex-direction: column; gap: .55rem;
+      border-radius: var(--radius); overflow: hidden;
+      display: grid; grid-template-columns: 40px 1fr;
+      transition: border-color .3s, box-shadow .3s, background .3s;
     }
-    .card-title {
-      font-size: .65rem; font-weight: 700; letter-spacing: .13em;
+    .card-label {
+      background: #0c0c1e; border-right: 1px solid var(--card-border);
+      display: flex; align-items: center; justify-content: center;
+      writing-mode: vertical-rl; transform: rotate(180deg);
+      font-size: .65rem; font-weight: 800; letter-spacing: .18em;
       text-transform: uppercase; color: var(--muted);
-      border-bottom: 1px solid var(--card-border); padding-bottom: .35rem;
+      padding: .6rem 0; user-select: none;
+      transition: color .3s, background .3s;
+    }
+    .card-body {
+      padding: .6rem .85rem;
+      display: flex; flex-direction: column; gap: .5rem;
     }
     .match-desc { font-size: 1.05rem; font-weight: 700; }
+
+    /* ── Queuing highlight ────────────────────────────────────────── */
+    .card-queuing {
+      border-color: var(--orange) !important;
+      background: linear-gradient(to right, #1c1000, var(--card-bg));
+      box-shadow: 0 0 18px 2px #f77f0030;
+      animation: queue-glow 2s ease-in-out infinite;
+    }
+    .card-queuing .card-label { background: #1c1000; color: var(--orange); }
+    @keyframes queue-glow {
+      0%, 100% { box-shadow: 0 0 10px 1px #f77f0025; }
+      50%       { box-shadow: 0 0 24px 4px #f77f0055; }
+    }
+    .queuing-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .2rem .6rem; border-radius: 5px; font-size: .7rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .08em;
+      background: #f77f0030; border: 1px solid var(--orange); color: var(--orange);
+      animation: pulse .9s ease-in-out infinite;
+    }
 
     /* ── Last match compact row ───────────────────────────────────── */
     .lm-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
@@ -262,26 +291,26 @@
 
   <!-- ── Current Event Match ────────────────────────────────────────── -->
   <div class="card" id="currentMatchCard">
-    <div class="card-title">Currently On Field</div>
-    <div id="currentMatchContent" class="empty-state">Loading…</div>
+    <div class="card-label">On Field</div>
+    <div class="card-body" id="currentMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
   <!-- ── Last Match ─────────────────────────────────────────────────── -->
   <div class="card" id="lastMatchCard">
-    <div class="card-title" id="titleLastMatch">Last Match</div>
-    <div id="lastMatchContent" class="empty-state">Loading…</div>
+    <div class="card-label">Last Match</div>
+    <div class="card-body" id="lastMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
   <!-- ── Next Match ─────────────────────────────────────────────────── -->
   <div class="card" id="nextMatchCard">
-    <div class="card-title" id="titleNextMatch">Next Match</div>
-    <div id="nextMatchContent" class="empty-state">Loading…</div>
+    <div class="card-label">Next Match</div>
+    <div class="card-body" id="nextMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
   <!-- ── Following Match ────────────────────────────────────────────── -->
   <div class="card" id="followingMatchCard">
-    <div class="card-title" id="titleFollowingMatch">Following Match</div>
-    <div id="followingMatchContent" class="empty-state">Loading…</div>
+    <div class="card-label">Following</div>
+    <div class="card-body" id="followingMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
   <!-- ── Test Mode Panel ────────────────────────────────────────────── -->
@@ -488,8 +517,17 @@ function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
   const nextMatch      = buildMatchInfo(teamMatches[nextIdx],      teamNum, delayInfo);
   const followingMatch = buildMatchInfo(teamMatches[followingIdx], teamNum, delayInfo);
 
+  // Queuing: team's next match is within 2 matches of the current field match
+  // Compare positions in the merged allMatches list (handles qual→playoff boundary)
+  const currentIdx = currentEventMatch ? allMatches.indexOf(currentEventMatch) : -1;
+  const nextIdx2   = nextMatch
+    ? allMatches.findIndex(m => m.matchNumber === nextMatch.matchNumber
+        && m.tournamentLevel === allMatches.find(x => x === teamMatches[nextIdx])?.tournamentLevel)
+    : -1;
+  const isQueuing = currentIdx >= 0 && nextIdx2 >= 0 && (nextIdx2 - currentIdx) <= 2;
+
   return { eventName, teamName, rankEntry, lastMatch, nextMatch, followingMatch,
-           currentEventMatch, delayInfo, teamMatches };
+           currentEventMatch, delayInfo, teamMatches, isQueuing };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -583,7 +621,10 @@ function renderLastMatch(lastMatch) {
 }
 
 // ── Next match ───────────────────────────────────────────────────────
-function renderNextMatch(nextMatch, delayInfo) {
+function renderNextMatch(nextMatch, delayInfo, isQueuing) {
+  const card = document.getElementById('nextMatchCard');
+  card.classList.toggle('card-queuing', !!isQueuing);
+
   const el = document.getElementById('nextMatchContent');
   if (!nextMatch) { el.innerHTML = '<div class="empty-state">No upcoming matches scheduled.</div>'; stopCountdown(); return; }
 
@@ -595,7 +636,10 @@ function renderNextMatch(nextMatch, delayInfo) {
   const alLower = (alliance || '').toLowerCase();
 
   el.innerHTML = `
-    <div class="match-desc">${escHtml(description)}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">
+      <div class="match-desc">${escHtml(description)}</div>
+      ${isQueuing ? '<span class="queuing-badge">⚡ Queuing</span>' : ''}
+    </div>
     <div class="bumper-display ${alLower}">${alliance ? alliance.toUpperCase() + ' BUMPERS' : '—'}</div>
     <div>
       <div class="time-row">
@@ -706,16 +750,11 @@ async function loadDashboard() {
     document.getElementById('eventName').textContent = r.eventName;
     document.getElementById('teamName').textContent  = r.teamName;
 
-    const teamLabel = cfg.teamNumber ? `${cfg.teamNumber} —` : '';
-    document.getElementById('titleLastMatch').textContent      = `${teamLabel} Last Match`;
-    document.getElementById('titleNextMatch').textContent      = `${teamLabel} Next Match`;
-    document.getElementById('titleFollowingMatch').textContent = `${teamLabel} Following Match`;
-
     const totalTeams = rankingsData?.Rankings?.length || 0;
     renderRanking(r.rankEntry, totalTeams);
     renderCurrentMatch(r.currentEventMatch, mergedSchedule.length);
     renderLastMatch(r.lastMatch);
-    renderNextMatch(r.nextMatch, r.delayInfo);
+    renderNextMatch(r.nextMatch, r.delayInfo, r.isQueuing);
     renderFollowingMatch(r.followingMatch, r.delayInfo);
 
     populateTestDropdown(r.teamMatches);
