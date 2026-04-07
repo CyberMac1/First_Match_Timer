@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRC Match Dashboard</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #0a0a14;
+      --card-bg:     #131326;
+      --card-border: #1e1e3a;
+      --text:        #e8e8f0;
+      --muted:       #6b6b9a;
+      --red:         #e63946;
+      --red-dim:     #7a1c23;
+      --blue:        #2979ff;
+      --blue-dim:    #0d3575;
+      --green:       #06d6a0;
+      --yellow:      #ffd166;
+      --orange:      #f77f00;
+      --radius:      14px;
+    }
+    html, body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+    button { cursor: pointer; border: none; background: none; font-family: inherit; }
+
+    /* ── Portrait-first layout ────────────────────────────────────── */
+    #app {
+      display: flex; flex-direction: column;
+      max-width: 820px; margin: 0 auto;
+      padding: .75rem; gap: .75rem; min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────── */
+    .header {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 1rem 1.25rem;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: .5rem;
+    }
+    .header-main { display: flex; flex-direction: column; gap: .25rem; }
+    .event-name  { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .team-name   { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+    .ranking-bar {
+      display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+      margin-top: .35rem;
+    }
+    .rank-chip {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .2rem .6rem; border-radius: 6px; font-size: .8rem; font-weight: 700;
+    }
+    .rank-chip.rank-gold   { background: #ffd16622; border: 1px solid var(--yellow); color: var(--yellow); }
+    .rank-chip.rank-normal { background: #ffffff11; border: 1px solid var(--card-border); color: var(--text); }
+    .rank-chip.rank-muted  { background: transparent; border: 1px solid var(--card-border); color: var(--muted); }
+    .header-btns { display: flex; flex-direction: column; gap: .4rem; align-items: flex-end; justify-content: flex-start; }
+
+    /* ── Buttons ──────────────────────────────────────────────────── */
+    .btn {
+      padding: .4rem .9rem; border-radius: 8px; font-size: .8rem; font-weight: 600;
+      transition: filter .15s; white-space: nowrap;
+    }
+    .btn:hover { filter: brightness(1.2); }
+    .btn-ghost   { border: 1px solid var(--card-border); color: var(--text); }
+    .btn-primary { background: #2979ff22; border: 1px solid var(--blue); color: var(--blue); }
+
+    /* ── Status bar ───────────────────────────────────────────────── */
+    #statusBar {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .75rem; color: var(--muted); padding: .2rem .5rem;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-ok   .status-dot { background: var(--green); }
+    .status-err  .status-dot { background: var(--red);    animation: pulse 1s infinite; }
+    .status-load .status-dot { background: var(--yellow); animation: pulse .6s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Test-mode notice ─────────────────────────────────────────── */
+    .test-active-notice {
+      background: #ffd16622; border: 1px solid var(--yellow); border-radius: 8px;
+      padding: .45rem .9rem; font-size: .8rem; color: var(--yellow);
+      display: flex; align-items: center; gap: .5rem;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────── */
+    .card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 1.1rem 1.25rem;
+      display: flex; flex-direction: column; gap: .85rem;
+    }
+    .card-title {
+      font-size: .7rem; font-weight: 700; letter-spacing: .13em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--card-border); padding-bottom: .5rem;
+    }
+    .match-desc { font-size: 1.2rem; font-weight: 700; }
+
+    /* ── Current match card ───────────────────────────────────────── */
+    .current-match-body {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    }
+    .current-match-num {
+      font-size: 2rem; font-weight: 800;
+    }
+    .current-match-desc { font-size: .9rem; color: var(--muted); }
+    .current-match-right { text-align: right; }
+    .on-deck-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .on-deck-val   { font-size: 1.1rem; font-weight: 700; }
+
+    /* ── Alliance badge ───────────────────────────────────────────── */
+    .alliance-badge {
+      display: inline-flex; align-items: center; gap: .45rem;
+      padding: .3rem .8rem; border-radius: 6px;
+      font-weight: 700; font-size: .9rem; letter-spacing: .04em;
+    }
+    .alliance-badge.red  { background: var(--red-dim);  color: #ff9aa2; border: 1px solid var(--red); }
+    .alliance-badge.blue { background: var(--blue-dim); color: #90bfff; border: 1px solid var(--blue); }
+    .alliance-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .alliance-dot.red  { background: var(--red); }
+    .alliance-dot.blue { background: var(--blue); }
+
+    /* ── Bumper display ───────────────────────────────────────────── */
+    .bumper-display {
+      border-radius: 10px; padding: .8rem 1.2rem;
+      text-align: center; font-size: 1.6rem; font-weight: 800;
+      letter-spacing: .06em; text-transform: uppercase; border: 2px solid;
+    }
+    .bumper-display.red  { background: var(--red-dim);  border-color: var(--red);  color: #ffcdd2; }
+    .bumper-display.blue { background: var(--blue-dim); border-color: var(--blue); color: #bbdefb; }
+
+    /* ── Result label ─────────────────────────────────────────────── */
+    .result-label { font-size: 2rem; font-weight: 800; letter-spacing: .05em; }
+    .result-win   { color: var(--green); }
+    .result-loss  { color: var(--red); }
+    .result-tie   { color: var(--yellow); }
+
+    /* ── Score table ──────────────────────────────────────────────── */
+    .score-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: .35rem .8rem; font-size: .88rem;
+    }
+    .score-grid .label { color: var(--muted); }
+    .score-grid .value { font-weight: 700; text-align: right; }
+    .score-big { font-size: 1.4rem; }
+
+    /* ── Time rows ────────────────────────────────────────────────── */
+    .time-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: .9rem; padding: .28rem 0;
+      border-bottom: 1px solid #1e1e3a55;
+    }
+    .time-row .t-label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; }
+    .time-row .t-value { font-weight: 700; }
+    .delay-tag {
+      font-size: .7rem; padding: .1rem .4rem; border-radius: 4px;
+      background: #ffd16622; color: var(--yellow); border: 1px solid var(--yellow);
+      margin-left: .35rem;
+    }
+
+    /* ── Countdown (full size — Next Match) ───────────────────────── */
+    .countdown-wrap {
+      text-align: center; padding: .9rem .5rem;
+      border-radius: 10px; border: 1px solid var(--card-border);
+      background: #0a0a1a;
+    }
+    .countdown-digits {
+      font-size: 3.2rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; letter-spacing: .05em;
+      transition: color .3s; line-height: 1;
+    }
+    .countdown-digits.ok     { color: var(--green); }
+    .countdown-digits.warn   { color: var(--yellow); }
+    .countdown-digits.urgent { color: var(--red); animation: pulse .8s infinite; }
+    .countdown-digits.past   { color: var(--muted); }
+    .countdown-sub { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-top: .25rem; }
+
+    /* ── Following match — compact row layout ─────────────────────── */
+    .following-row {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    }
+    .following-bumper {
+      padding: .4rem 1rem; border-radius: 8px; font-size: 1rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .05em; border: 2px solid;
+    }
+    .following-bumper.red  { background: var(--red-dim);  border-color: var(--red);  color: #ffcdd2; }
+    .following-bumper.blue { background: var(--blue-dim); border-color: var(--blue); color: #bbdefb; }
+    .following-times { display: flex; flex-direction: column; gap: .15rem; text-align: right; }
+    .following-times .ft-label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .following-times .ft-val   { font-size: 1rem; font-weight: 700; }
+    .following-times .ft-est   { font-size: .85rem; color: var(--yellow); font-weight: 600; }
+
+    /* ── Empty state ──────────────────────────────────────────────── */
+    .empty-state { color: var(--muted); font-size: .9rem; text-align: center; padding: 1.5rem 0; }
+
+    /* ── Modal overlay ────────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0; background: #00000099;
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .overlay.hidden { display: none; }
+    .modal {
+      background: #181830; border: 1px solid var(--card-border);
+      border-radius: var(--radius); padding: 1.75rem; width: min(480px, 95vw);
+      max-height: 90vh; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 1.1rem; position: relative;
+    }
+    .modal h2 { font-size: 1.05rem; font-weight: 700; }
+    .modal-close { position: absolute; top: 1rem; right: 1rem; color: var(--muted); font-size: 1.1rem; padding: .25rem .5rem; }
+    .form-group { display: flex; flex-direction: column; gap: .35rem; }
+    .form-group label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .form-group input, .form-group select {
+      background: var(--bg); border: 1px solid var(--card-border);
+      border-radius: 8px; padding: .55rem .75rem; color: var(--text);
+      font-size: .9rem; font-family: inherit; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--blue); }
+    .form-note { font-size: .75rem; color: var(--muted); line-height: 1.5; }
+    .btn-save { background: var(--blue); color: #fff; border-radius: 8px; padding: .65rem 1.4rem; font-weight: 600; font-size: .9rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+
+    /* ── Test mode panel ──────────────────────────────────────────── */
+    #testPanel {
+      background: #13130a; border: 1px solid var(--yellow);
+      border-radius: var(--radius); padding: 1rem 1.25rem;
+    }
+    #testPanel h3 { font-size: .8rem; font-weight: 700; color: var(--yellow); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .75rem; }
+    .test-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: .75rem; align-items: end; }
+    @media (max-width: 550px) { .test-grid { grid-template-columns: 1fr; } }
+    .btn-apply { background: var(--yellow); color: #1a1a00; border-radius: 8px; padding: .55rem 1.1rem; font-weight: 700; font-size: .82rem; }
+    .btn-clear  { background: #ffffff22; border: 1px solid var(--card-border); color: var(--muted); border-radius: 8px; padding: .55rem 1.1rem; font-size: .82rem; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-main">
+      <div class="event-name" id="eventName">— Configure in Settings —</div>
+      <div class="team-name"  id="teamName">FRC Dashboard</div>
+      <div class="ranking-bar" id="rankingBar">
+        <span class="rank-chip rank-muted">Ranking: —</span>
+      </div>
+    </div>
+    <div class="header-btns">
+      <button class="btn btn-primary" id="settingsBtn">⚙ Settings</button>
+      <button class="btn btn-ghost"   id="refreshBtn">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- ── Status bar ──────────────────────────────────────────────────── -->
+  <div id="statusBar" class="status-load">
+    <span class="status-dot"></span>
+    <span id="statusText">Waiting for configuration…</span>
+  </div>
+
+  <!-- ── Test-mode active notice ────────────────────────────────────── -->
+  <div id="testActiveNotice" class="test-active-notice" style="display:none">
+    🧪 <strong>Test Mode</strong> — last match: <span id="testNoticeMatch"></span> · clock: <span id="testNoticeClock"></span>
+  </div>
+
+  <!-- ── Current Event Match ────────────────────────────────────────── -->
+  <div class="card" id="currentMatchCard">
+    <div class="card-title">Currently On Field</div>
+    <div id="currentMatchContent" class="empty-state">Loading…</div>
+  </div>
+
+  <!-- ── Last Match ─────────────────────────────────────────────────── -->
+  <div class="card" id="lastMatchCard">
+    <div class="card-title">Your Last Match</div>
+    <div id="lastMatchContent" class="empty-state">Loading…</div>
+  </div>
+
+  <!-- ── Next Match ─────────────────────────────────────────────────── -->
+  <div class="card" id="nextMatchCard">
+    <div class="card-title">Your Next Match</div>
+    <div id="nextMatchContent" class="empty-state">Loading…</div>
+  </div>
+
+  <!-- ── Following Match ────────────────────────────────────────────── -->
+  <div class="card" id="followingMatchCard">
+    <div class="card-title">Following Match (after next)</div>
+    <div id="followingMatchContent" class="empty-state">Loading…</div>
+  </div>
+
+  <!-- ── Test Mode Panel ────────────────────────────────────────────── -->
+  <div id="testPanel">
+    <h3>🧪 Test Mode</h3>
+    <div class="test-grid">
+      <div class="form-group">
+        <label>Treat as Last Played Match</label>
+        <select id="testMatchSelect">
+          <option value="">— load data first —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Simulated "Current" Time</label>
+        <input type="datetime-local" id="testCurrentTime" />
+      </div>
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+        <button class="btn-apply" id="applyTestBtn">Apply</button>
+        <button class="btn-clear" id="clearTestBtn">Clear</button>
+      </div>
+    </div>
+    <div class="form-note" style="margin-top:.5rem">
+      Select any played match as "last match" and set a fake clock — the dashboard recalculates delay and countdown as if it were that moment.
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ── Settings Modal ───────────────────────────────────────────────── -->
+<div class="overlay hidden" id="settingsOverlay">
+  <div class="modal">
+    <button class="modal-close" id="closeSettingsBtn">✕</button>
+    <h2>Dashboard Settings</h2>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>FRC API Username</label>
+        <input type="text" id="cfgUsername" placeholder="your_username" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label>API Key / Password</label>
+        <input type="password" id="cfgApiKey" placeholder="••••••••••••••••" autocomplete="off" />
+      </div>
+    </div>
+    <div class="form-note">
+      Get credentials at <strong>frc-events.firstinspires.org/services/API</strong> — or set in a <code>.env</code> file on the server (server credentials take priority).
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Season Year</label>
+        <input type="number" id="cfgSeason" placeholder="2026" min="2015" max="2099" />
+      </div>
+      <div class="form-group">
+        <label>Event Code</label>
+        <input type="text" id="cfgEventCode" placeholder="TXHOU" autocomplete="off" style="text-transform:uppercase" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Team Number</label>
+      <input type="number" id="cfgTeamNumber" placeholder="1234" min="1" max="99999" />
+    </div>
+
+    <div class="form-group">
+      <label>Tournament Level</label>
+      <select id="cfgTournamentLevel">
+        <option value="qual">Qualification</option>
+        <option value="playoff">Playoff</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Delay Sample Size (last N matches)</label>
+      <input type="number" id="cfgDelaySample" placeholder="5" min="1" max="20" />
+    </div>
+
+    <button class="btn-save" id="saveSettingsBtn">Save & Refresh</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'frc_dashboard_v1';
+const REFRESH_INTERVAL_MS = 60_000;
+
+function defaultConfig() {
+  return { username: '', apiKey: '', season: new Date().getFullYear(),
+           eventCode: '', teamNumber: '', tournamentLevel: 'qual', delaySample: 5 };
+}
+let cfg = Object.assign(defaultConfig(), loadConfig());
+function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
+function saveConfig()  { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST MODE
+// ═══════════════════════════════════════════════════════════════════
+const test = { enabled: false, lastMatchNumber: null, anchorReal: null, anchorFake: null };
+
+function getCurrentTime() {
+  if (test.enabled && test.anchorFake) {
+    return new Date(test.anchorFake.getTime() + (Date.now() - test.anchorReal.getTime()));
+  }
+  return new Date();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  API CLIENT
+// ═══════════════════════════════════════════════════════════════════
+async function apiFetch(path, params = {}) {
+  const qs  = Object.keys(params).length ? '?' + new URLSearchParams(params) : '';
+  const url = `/api/frc${path}${qs}`;
+  const headers = {};
+  if (cfg.username && cfg.apiKey) headers['X-FRC-Auth'] = btoa(`${cfg.username}:${cfg.apiKey}`);
+  const res  = await fetch(url, { headers });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || json?.message || `HTTP ${res.status}`);
+  return json;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DATA PROCESSING
+// ═══════════════════════════════════════════════════════════════════
+const SENTINEL = '0001-01-01';
+function isValidDate(s) {
+  if (!s || s.startsWith(SENTINEL)) return false;
+  const d = new Date(s);
+  return !isNaN(d.getTime()) && d.getFullYear() > 2000;
+}
+
+function teamAlliance(match, teamNum) {
+  const t = (match.teams || []).find(t => t.teamNumber === parseInt(teamNum));
+  if (!t) return null;
+  return t.station?.toLowerCase().startsWith('red') ? 'Red' : 'Blue';
+}
+
+function calcDelay(allMatches, sampleSize) {
+  const played = allMatches.filter(m => isValidDate(m.actualStartTime) && isValidDate(m.startTime));
+  const recent = played.slice(-Math.max(sampleSize, 1));
+  if (!recent.length) return { avgMs: 0, sampleCount: 0 };
+  const deltas = recent.map(m => new Date(m.actualStartTime) - new Date(m.startTime));
+  return { avgMs: deltas.reduce((a,b) => a+b, 0) / deltas.length, sampleCount: recent.length };
+}
+
+function buildMatchInfo(m, teamNum, delayInfo) {
+  if (!m) return null;
+  const al  = teamAlliance(m, teamNum);
+  const sch = isValidDate(m.startTime) ? new Date(m.startTime) : null;
+  const est = sch ? new Date(sch.getTime() + delayInfo.avgMs) : null;
+  return { matchNumber: m.matchNumber, description: m.description, alliance: al,
+           scheduledStart: sch, estimatedStart: est };
+}
+
+function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
+  const allMatches = hybridData?.Schedule || [];
+
+  const event     = (eventData?.Events || [])[0];
+  const eventName = event?.name || cfg.eventCode.toUpperCase();
+
+  const team     = (teamData?.teams || [])[0];
+  const teamName = team
+    ? `Team ${team.teamNumber} — ${team.nameShort || team.nameFull || ''}`
+    : `Team ${cfg.teamNumber}`;
+
+  // Ranking
+  const teamNum   = parseInt(cfg.teamNumber);
+  const rankEntry = (rankingsData?.Rankings || []).find(r => r.teamNumber === teamNum);
+
+  // Delay
+  const delayInfo = calcDelay(allMatches, cfg.delaySample);
+
+  // Team's matches
+  const teamMatches = allMatches.filter(m => (m.teams||[]).some(t => t.teamNumber === teamNum));
+
+  // Current event match = highest matchNumber with actualStartTime set (overall)
+  const playedAll = allMatches.filter(m => isValidDate(m.actualStartTime));
+  const currentEventMatch = playedAll.length
+    ? playedAll.reduce((a,b) => b.matchNumber > a.matchNumber ? b : a)
+    : null;
+
+  // Last team match index
+  let lastIdx = -1;
+  if (test.enabled && test.lastMatchNumber != null) {
+    lastIdx = teamMatches.findIndex(m => m.matchNumber === test.lastMatchNumber);
+  } else {
+    for (let i = teamMatches.length - 1; i >= 0; i--) {
+      if (isValidDate(teamMatches[i].actualStartTime)) { lastIdx = i; break; }
+    }
+  }
+
+  const nextIdx      = lastIdx + 1;
+  const followingIdx = lastIdx + 2;
+
+  // Last match (with score)
+  let lastMatch = null;
+  if (lastIdx >= 0) {
+    const m  = teamMatches[lastIdx];
+    const al = teamAlliance(m, teamNum);
+    const my  = al === 'Red' ? m.scoreRedFinal  : m.scoreBlueFinal;
+    const opp = al === 'Red' ? m.scoreBlueFinal : m.scoreRedFinal;
+    lastMatch = {
+      matchNumber: m.matchNumber, description: m.description, alliance: al,
+      myScore: my ?? '—', oppScore: opp ?? '—',
+      myAuto:  (al === 'Red' ? m.scoreRedAuto : m.scoreBlueAuto) ?? '—',
+      myFoul:  (al === 'Red' ? m.scoreRedFoul : m.scoreBlueFoul) ?? '—',
+      result: my == null ? '—' : my > opp ? 'WIN' : my < opp ? 'LOSS' : 'TIE',
+    };
+  }
+
+  const nextMatch      = buildMatchInfo(teamMatches[nextIdx],      teamNum, delayInfo);
+  const followingMatch = buildMatchInfo(teamMatches[followingIdx], teamNum, delayInfo);
+
+  return { eventName, teamName, rankEntry, lastMatch, nextMatch, followingMatch,
+           currentEventMatch, delayInfo, teamMatches };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RENDER HELPERS
+// ═══════════════════════════════════════════════════════════════════
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtTime(d) {
+  return d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+}
+function allianceHTML(al) {
+  if (!al) return '';
+  const c = al.toLowerCase();
+  return `<span class="alliance-badge ${c}"><span class="alliance-dot ${c}"></span>${al.toUpperCase()} ALLIANCE</span>`;
+}
+
+// ── Ranking bar ──────────────────────────────────────────────────────
+function renderRanking(rankEntry, totalTeams) {
+  const bar = document.getElementById('rankingBar');
+  if (!rankEntry) {
+    bar.innerHTML = '<span class="rank-chip rank-muted">Ranking: —</span>';
+    return;
+  }
+  const { rank, wins, losses, ties, qualAverage, matchesPlayed } = rankEntry;
+  const isTop3 = rank <= 3;
+  bar.innerHTML = `
+    <span class="rank-chip ${isTop3 ? 'rank-gold' : 'rank-normal'}">
+      Rank #${rank}${totalTeams ? ' / ' + totalTeams : ''}
+    </span>
+    <span class="rank-chip rank-muted">${wins}-${losses}-${ties} W-L-T</span>
+    <span class="rank-chip rank-muted">Avg ${qualAverage?.toFixed(1) ?? '—'} pts</span>
+    <span class="rank-chip rank-muted">${matchesPlayed} played</span>
+  `;
+}
+
+// ── Current event match ──────────────────────────────────────────────
+function renderCurrentMatch(currentEventMatch, totalEventMatches) {
+  const el = document.getElementById('currentMatchContent');
+  if (!currentEventMatch) {
+    el.innerHTML = '<div class="empty-state">No matches played at this event yet.</div>';
+    return;
+  }
+  const total = totalEventMatches ? ` of ${totalEventMatches}` : '';
+  el.innerHTML = `
+    <div class="current-match-body">
+      <div>
+        <div class="current-match-num">Match ${currentEventMatch.matchNumber}${total}</div>
+        <div class="current-match-desc">${escHtml(currentEventMatch.description)}</div>
+      </div>
+      <div class="current-match-right">
+        <div class="on-deck-label">Started</div>
+        <div class="on-deck-val">${fmtTime(isValidDate(currentEventMatch.actualStartTime) ? new Date(currentEventMatch.actualStartTime) : null)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Last match ───────────────────────────────────────────────────────
+function renderLastMatch(lastMatch) {
+  const el = document.getElementById('lastMatchContent');
+  if (!lastMatch) { el.innerHTML = '<div class="empty-state">No matches played yet.</div>'; return; }
+  const { description, alliance, myScore, oppScore, myAuto, myFoul, result } = lastMatch;
+  const rc = { WIN: 'result-win', LOSS: 'result-loss', TIE: 'result-tie' }[result] || '';
+  el.innerHTML = `
+    <div class="match-desc">${escHtml(description)}</div>
+    ${allianceHTML(alliance)}
+    <div class="result-label ${rc}">${result}</div>
+    <div class="score-grid">
+      <span class="label">Your score</span>   <span class="value score-big">${myScore}</span>
+      <span class="label">Opponent score</span><span class="value score-big">${oppScore}</span>
+      <span class="label">Auto pts</span>      <span class="value">${myAuto}</span>
+      <span class="label">Foul pts received</span><span class="value">${myFoul}</span>
+    </div>
+  `;
+}
+
+// ── Next match ───────────────────────────────────────────────────────
+function renderNextMatch(nextMatch, delayInfo) {
+  const el = document.getElementById('nextMatchContent');
+  if (!nextMatch) { el.innerHTML = '<div class="empty-state">No upcoming matches scheduled.</div>'; stopCountdown(); return; }
+
+  const { description, alliance, scheduledStart, estimatedStart } = nextMatch;
+  const delayMin   = Math.round(delayInfo.avgMs / 60_000);
+  const delayLabel = delayInfo.sampleCount > 0
+    ? `${delayMin >= 0 ? '+' : ''}${delayMin} min (last ${delayInfo.sampleCount})`
+    : 'no delay data';
+  const alLower = (alliance || '').toLowerCase();
+
+  el.innerHTML = `
+    <div class="match-desc">${escHtml(description)}</div>
+    <div class="bumper-display ${alLower}">${alliance ? alliance.toUpperCase() + ' BUMPERS' : '—'}</div>
+    <div>
+      <div class="time-row">
+        <span class="t-label">Scheduled</span>
+        <span class="t-value">${fmtTime(scheduledStart)}</span>
+      </div>
+      <div class="time-row">
+        <span class="t-label">Estimated <span class="delay-tag">${escHtml(delayLabel)}</span></span>
+        <span class="t-value">${fmtTime(estimatedStart)}</span>
+      </div>
+    </div>
+    <div class="countdown-wrap">
+      <div class="countdown-digits ok" id="countdownDigits">— : — : —</div>
+      <div class="countdown-sub" id="countdownSub">until estimated start</div>
+    </div>
+  `;
+  startCountdown(estimatedStart || scheduledStart);
+}
+
+// ── Following match ──────────────────────────────────────────────────
+function renderFollowingMatch(followingMatch, delayInfo) {
+  const el = document.getElementById('followingMatchContent');
+  if (!followingMatch) { el.innerHTML = '<div class="empty-state">No match scheduled after next.</div>'; return; }
+
+  const { description, alliance, scheduledStart, estimatedStart } = followingMatch;
+  const delayMin   = Math.round(delayInfo.avgMs / 60_000);
+  const alLower    = (alliance || '').toLowerCase();
+
+  el.innerHTML = `
+    <div class="match-desc">${escHtml(description)}</div>
+    <div class="following-row">
+      <div class="following-bumper ${alLower}">${alliance ? alliance.toUpperCase() + ' BUMPERS' : '—'}</div>
+      <div class="following-times">
+        <span class="ft-label">Scheduled</span>
+        <span class="ft-val">${fmtTime(scheduledStart)}</span>
+        <span class="ft-est">${estimatedStart ? '~' + fmtTime(estimatedStart) + ' est.' : ''}</span>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  COUNTDOWN
+// ═══════════════════════════════════════════════════════════════════
+let countdownTimer = null, countdownTarget = null;
+
+function startCountdown(target) {
+  stopCountdown(); countdownTarget = target;
+  if (!target) return;
+  tickCountdown();
+  countdownTimer = setInterval(tickCountdown, 1000);
+}
+function stopCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  countdownTarget = null;
+}
+function tickCountdown() {
+  const el  = document.getElementById('countdownDigits');
+  const sub = document.getElementById('countdownSub');
+  if (!el || !countdownTarget) return;
+  const diff = countdownTarget.getTime() - getCurrentTime().getTime();
+  if (diff <= 0) {
+    el.textContent = '00:00:00'; el.className = 'countdown-digits past';
+    if (sub) sub.textContent = 'match may have started'; return;
+  }
+  const s = Math.floor(diff / 1000);
+  el.textContent = [Math.floor(s/3600), Math.floor((s%3600)/60), s%60].map(v=>String(v).padStart(2,'0')).join(':');
+  const m = diff / 60_000;
+  el.className = m <= 10 ? 'countdown-digits urgent' : m <= 30 ? 'countdown-digits warn' : 'countdown-digits ok';
+  if (sub) sub.textContent = 'until estimated start';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATUS
+// ═══════════════════════════════════════════════════════════════════
+function setStatus(type, msg) {
+  document.getElementById('statusBar').className  = `status-${type}`;
+  document.getElementById('statusText').textContent = msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  MAIN LOAD
+// ═══════════════════════════════════════════════════════════════════
+async function loadDashboard() {
+  if (!cfg.season || !cfg.eventCode || !cfg.teamNumber) {
+    setStatus('err', 'Missing configuration — open ⚙ Settings to get started.'); return;
+  }
+  setStatus('load', 'Fetching data…');
+  try {
+    const season = cfg.season, event = cfg.eventCode.toUpperCase(), level = cfg.tournamentLevel;
+
+    const [hybridData, teamData, eventData, rankingsData] = await Promise.all([
+      apiFetch(`/${season}/schedule/${event}/${level}/hybrid`),
+      apiFetch(`/${season}/teams`, { teamNumber: cfg.teamNumber }),
+      apiFetch(`/${season}/events`, { eventCode: event }),
+      apiFetch(`/${season}/rankings/${event}`),
+    ]);
+
+    const r = processSchedule({ hybridData, teamData, eventData, rankingsData });
+
+    document.getElementById('eventName').textContent = r.eventName;
+    document.getElementById('teamName').textContent  = r.teamName;
+
+    const totalTeams = rankingsData?.Rankings?.length || 0;
+    renderRanking(r.rankEntry, totalTeams);
+    renderCurrentMatch(r.currentEventMatch, hybridData?.Schedule?.length);
+    renderLastMatch(r.lastMatch);
+    renderNextMatch(r.nextMatch, r.delayInfo);
+    renderFollowingMatch(r.followingMatch, r.delayInfo);
+
+    populateTestDropdown(r.teamMatches);
+
+    const ts = getCurrentTime().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setStatus('ok', `Updated ${ts}${test.enabled ? ' · TEST MODE' : ''}`);
+
+  } catch (err) {
+    console.error(err);
+    setStatus('err', `Error: ${err.message}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEST MODE HELPERS
+// ═══════════════════════════════════════════════════════════════════
+function populateTestDropdown(teamMatches) {
+  const sel  = document.getElementById('testMatchSelect');
+  const prev = sel.value;
+  const played = teamMatches.filter(m => isValidDate(m.actualStartTime));
+  sel.innerHTML = '<option value="">— pick a match —</option>';
+  played.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.matchNumber; o.textContent = m.description;
+    sel.appendChild(o);
+  });
+  if (prev) sel.value = prev;
+}
+function applyTestMode() {
+  const matchNum = parseInt(document.getElementById('testMatchSelect').value);
+  const timeVal  = document.getElementById('testCurrentTime').value;
+  if (!matchNum) { alert('Select a match first.'); return; }
+  if (!timeVal)  { alert('Enter a simulated current time.'); return; }
+  test.enabled = true; test.lastMatchNumber = matchNum;
+  test.anchorFake = new Date(timeVal); test.anchorReal = new Date();
+  const notice = document.getElementById('testActiveNotice');
+  notice.style.display = 'flex';
+  document.getElementById('testNoticeMatch').textContent = `#${matchNum}`;
+  document.getElementById('testNoticeClock').textContent = test.anchorFake.toLocaleString();
+  loadDashboard();
+}
+function clearTestMode() {
+  test.enabled = false; test.lastMatchNumber = null; test.anchorFake = null; test.anchorReal = null;
+  document.getElementById('testActiveNotice').style.display = 'none';
+  loadDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AUTO-REFRESH
+// ═══════════════════════════════════════════════════════════════════
+let autoRefreshTimer = null;
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(() => { if (!test.enabled) loadDashboard(); }, REFRESH_INTERVAL_MS);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SETTINGS
+// ═══════════════════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('cfgUsername').value        = cfg.username || '';
+  document.getElementById('cfgApiKey').value          = cfg.apiKey   || '';
+  document.getElementById('cfgSeason').value          = cfg.season   || new Date().getFullYear();
+  document.getElementById('cfgEventCode').value       = cfg.eventCode || '';
+  document.getElementById('cfgTeamNumber').value      = cfg.teamNumber || '';
+  document.getElementById('cfgTournamentLevel').value = cfg.tournamentLevel || 'qual';
+  document.getElementById('cfgDelaySample').value     = cfg.delaySample || 5;
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+}
+function closeSettings() { document.getElementById('settingsOverlay').classList.add('hidden'); }
+function saveSettings() {
+  cfg.username        = document.getElementById('cfgUsername').value.trim();
+  cfg.apiKey          = document.getElementById('cfgApiKey').value.trim();
+  cfg.season          = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
+  cfg.eventCode       = document.getElementById('cfgEventCode').value.trim().toUpperCase();
+  cfg.teamNumber      = document.getElementById('cfgTeamNumber').value.trim();
+  cfg.tournamentLevel = document.getElementById('cfgTournamentLevel').value;
+  cfg.delaySample     = parseInt(document.getElementById('cfgDelaySample').value) || 5;
+  saveConfig(); closeSettings(); loadDashboard();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
+document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+document.getElementById('applyTestBtn').addEventListener('click', applyTestMode);
+document.getElementById('clearTestBtn').addEventListener('click', clearTestMode);
+document.getElementById('settingsOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+});
+
+// Pre-fill test time
+const _now = new Date(); _now.setSeconds(0,0);
+document.getElementById('testCurrentTime').value = _now.toISOString().slice(0,16);
+
+if (cfg.eventCode && cfg.teamNumber) loadDashboard();
+else { setStatus('err', 'No config — open ⚙ Settings.'); openSettings(); }
+startAutoRefresh();
+</script>
+</body>
+</html>
