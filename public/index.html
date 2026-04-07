@@ -347,14 +347,6 @@
     </div>
 
     <div class="form-group">
-      <label>Tournament Level</label>
-      <select id="cfgTournamentLevel">
-        <option value="qual">Qualification</option>
-        <option value="playoff">Playoff</option>
-      </select>
-    </div>
-
-    <div class="form-group">
       <label>Delay Sample Size (last N matches)</label>
       <input type="number" id="cfgDelaySample" placeholder="5" min="1" max="20" />
     </div>
@@ -372,7 +364,7 @@ const REFRESH_INTERVAL_MS = 60_000;
 
 function defaultConfig() {
   return { username: '', apiKey: '', season: new Date().getFullYear(),
-           eventCode: '', teamNumber: '', tournamentLevel: 'qual', delaySample: 5 };
+           eventCode: '', teamNumber: '', delaySample: 5 };
 }
 let cfg = Object.assign(defaultConfig(), loadConfig());
 function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
@@ -693,14 +685,21 @@ async function loadDashboard() {
   }
   setStatus('load', 'Fetching data…');
   try {
-    const season = cfg.season, event = cfg.eventCode.toUpperCase(), level = cfg.tournamentLevel;
+    const season = cfg.season, event = cfg.eventCode.toUpperCase();
 
-    const [hybridData, teamData, eventData, rankingsData] = await Promise.all([
-      apiFetch(`/${season}/schedule/${event}/${level}/hybrid`),
+    const [qualHybrid, playoffHybrid, teamData, eventData, rankingsData] = await Promise.all([
+      apiFetch(`/${season}/schedule/${event}/qual/hybrid`),
+      apiFetch(`/${season}/schedule/${event}/playoff/hybrid`).catch(() => ({ Schedule: [] })),
       apiFetch(`/${season}/teams`, { teamNumber: cfg.teamNumber }),
       apiFetch(`/${season}/events`, { eventCode: event }),
       apiFetch(`/${season}/rankings/${event}`),
     ]);
+
+    const mergedSchedule = [
+      ...(qualHybrid?.Schedule || []),
+      ...(playoffHybrid?.Schedule || []),
+    ];
+    const hybridData = { Schedule: mergedSchedule };
 
     const r = processSchedule({ hybridData, teamData, eventData, rankingsData });
 
@@ -714,7 +713,7 @@ async function loadDashboard() {
 
     const totalTeams = rankingsData?.Rankings?.length || 0;
     renderRanking(r.rankEntry, totalTeams);
-    renderCurrentMatch(r.currentEventMatch, hybridData?.Schedule?.length);
+    renderCurrentMatch(r.currentEventMatch, mergedSchedule.length);
     renderLastMatch(r.lastMatch);
     renderNextMatch(r.nextMatch, r.delayInfo);
     renderFollowingMatch(r.followingMatch, r.delayInfo);
@@ -782,7 +781,6 @@ function openSettings() {
   document.getElementById('cfgSeason').value          = cfg.season   || new Date().getFullYear();
   document.getElementById('cfgEventCode').value       = cfg.eventCode || '';
   document.getElementById('cfgTeamNumber').value      = cfg.teamNumber || '';
-  document.getElementById('cfgTournamentLevel').value = cfg.tournamentLevel || 'qual';
   document.getElementById('cfgDelaySample').value     = cfg.delaySample || 5;
   document.getElementById('settingsOverlay').classList.remove('hidden');
 }
@@ -793,7 +791,6 @@ function saveSettings() {
   cfg.season          = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
   cfg.eventCode       = document.getElementById('cfgEventCode').value.trim().toUpperCase();
   cfg.teamNumber      = document.getElementById('cfgTeamNumber').value.trim();
-  cfg.tournamentLevel = document.getElementById('cfgTournamentLevel').value;
   cfg.delaySample     = parseInt(document.getElementById('cfgDelaySample').value) || 5;
   saveConfig(); closeSettings(); loadDashboard();
 }
