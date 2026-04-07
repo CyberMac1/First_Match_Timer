@@ -32,23 +32,23 @@
     #app {
       display: flex; flex-direction: column;
       max-width: 820px; margin: 0 auto;
-      padding: .75rem; gap: .75rem; min-height: 100vh;
+      padding: .5rem; gap: .45rem; min-height: 100vh;
     }
 
     /* ── Header ───────────────────────────────────────────────────── */
     .header {
       background: var(--card-bg); border: 1px solid var(--card-border);
-      border-radius: var(--radius); padding: 1rem 1.25rem;
+      border-radius: var(--radius); padding: .65rem 1rem;
       display: grid;
       grid-template-columns: 1fr auto;
-      gap: .5rem;
+      gap: .4rem;
     }
-    .header-main { display: flex; flex-direction: column; gap: .25rem; }
-    .event-name  { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-    .team-name   { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+    .header-main { display: flex; flex-direction: column; gap: .15rem; }
+    .event-name  { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .team-name   { font-size: 1.25rem; font-weight: 800; line-height: 1.1; }
     .ranking-bar {
-      display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
-      margin-top: .35rem;
+      display: flex; flex-wrap: wrap; gap: .35rem; align-items: center;
+      margin-top: .2rem;
     }
     .rank-chip {
       display: inline-flex; align-items: center; gap: .3rem;
@@ -89,27 +89,34 @@
     /* ── Cards ────────────────────────────────────────────────────── */
     .card {
       background: var(--card-bg); border: 1px solid var(--card-border);
-      border-radius: var(--radius); padding: 1.1rem 1.25rem;
-      display: flex; flex-direction: column; gap: .85rem;
+      border-radius: var(--radius); padding: .7rem 1rem;
+      display: flex; flex-direction: column; gap: .55rem;
     }
     .card-title {
-      font-size: .7rem; font-weight: 700; letter-spacing: .13em;
+      font-size: .65rem; font-weight: 700; letter-spacing: .13em;
       text-transform: uppercase; color: var(--muted);
-      border-bottom: 1px solid var(--card-border); padding-bottom: .5rem;
+      border-bottom: 1px solid var(--card-border); padding-bottom: .35rem;
     }
-    .match-desc { font-size: 1.2rem; font-weight: 700; }
+    .match-desc { font-size: 1.05rem; font-weight: 700; }
+
+    /* ── Last match compact row ───────────────────────────────────── */
+    .lm-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+    .lm-scores { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+    .lm-result { font-size: 1.25rem; font-weight: 800; letter-spacing: .04em; min-width: 3rem; }
+    .lm-score-item { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .lm-score-label { font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .lm-score-val   { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
+    .lm-score-sep   { color: var(--muted); font-size: .75rem; margin-top: .8rem; }
 
     /* ── Current match card ───────────────────────────────────────── */
     .current-match-body {
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .4rem;
     }
-    .current-match-num {
-      font-size: 2rem; font-weight: 800;
-    }
-    .current-match-desc { font-size: .9rem; color: var(--muted); }
+    .current-match-num  { font-size: 1.5rem; font-weight: 800; }
+    .current-match-desc { font-size: .8rem; color: var(--muted); }
     .current-match-right { text-align: right; }
-    .on-deck-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-    .on-deck-val   { font-size: 1.1rem; font-weight: 700; }
+    .on-deck-label { font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .on-deck-val   { font-size: 1rem; font-weight: 700; }
 
     /* ── Alliance badge ───────────────────────────────────────────── */
     .alliance-badge {
@@ -125,27 +132,17 @@
 
     /* ── Bumper display ───────────────────────────────────────────── */
     .bumper-display {
-      border-radius: 10px; padding: .8rem 1.2rem;
-      text-align: center; font-size: 1.6rem; font-weight: 800;
+      border-radius: 8px; padding: .45rem 1rem;
+      text-align: center; font-size: 1.25rem; font-weight: 800;
       letter-spacing: .06em; text-transform: uppercase; border: 2px solid;
     }
     .bumper-display.red  { background: var(--red-dim);  border-color: var(--red);  color: #ffcdd2; }
     .bumper-display.blue { background: var(--blue-dim); border-color: var(--blue); color: #bbdefb; }
 
-    /* ── Result label ─────────────────────────────────────────────── */
-    .result-label { font-size: 2rem; font-weight: 800; letter-spacing: .05em; }
-    .result-win   { color: var(--green); }
-    .result-loss  { color: var(--red); }
-    .result-tie   { color: var(--yellow); }
-
-    /* ── Score table ──────────────────────────────────────────────── */
-    .score-grid {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: .35rem .8rem; font-size: .88rem;
-    }
-    .score-grid .label { color: var(--muted); }
-    .score-grid .value { font-weight: 700; text-align: right; }
-    .score-big { font-size: 1.4rem; }
+    /* ── Result colours ──────────────────────────────────────────── */
+    .result-win  { color: var(--green); }
+    .result-loss { color: var(--red); }
+    .result-tie  { color: var(--yellow); }
 
     /* ── Time rows ────────────────────────────────────────────────── */
     .time-row {
@@ -163,12 +160,12 @@
 
     /* ── Countdown (full size — Next Match) ───────────────────────── */
     .countdown-wrap {
-      text-align: center; padding: .9rem .5rem;
+      text-align: center; padding: .55rem .5rem;
       border-radius: 10px; border: 1px solid var(--card-border);
       background: #0a0a1a;
     }
     .countdown-digits {
-      font-size: 3.2rem; font-weight: 800;
+      font-size: 2.6rem; font-weight: 800;
       font-variant-numeric: tabular-nums; letter-spacing: .05em;
       transition: color .3s; line-height: 1;
     }
@@ -271,19 +268,19 @@
 
   <!-- ── Last Match ─────────────────────────────────────────────────── -->
   <div class="card" id="lastMatchCard">
-    <div class="card-title">Your Last Match</div>
+    <div class="card-title" id="titleLastMatch">Last Match</div>
     <div id="lastMatchContent" class="empty-state">Loading…</div>
   </div>
 
   <!-- ── Next Match ─────────────────────────────────────────────────── -->
   <div class="card" id="nextMatchCard">
-    <div class="card-title">Your Next Match</div>
+    <div class="card-title" id="titleNextMatch">Next Match</div>
     <div id="nextMatchContent" class="empty-state">Loading…</div>
   </div>
 
   <!-- ── Following Match ────────────────────────────────────────────── -->
   <div class="card" id="followingMatchCard">
-    <div class="card-title">Following Match (after next)</div>
+    <div class="card-title" id="titleFollowingMatch">Following Match</div>
     <div id="followingMatchContent" class="empty-state">Loading…</div>
   </div>
 
@@ -566,14 +563,29 @@ function renderLastMatch(lastMatch) {
   const { description, alliance, myScore, oppScore, myAuto, myFoul, result } = lastMatch;
   const rc = { WIN: 'result-win', LOSS: 'result-loss', TIE: 'result-tie' }[result] || '';
   el.innerHTML = `
-    <div class="match-desc">${escHtml(description)}</div>
-    ${allianceHTML(alliance)}
-    <div class="result-label ${rc}">${result}</div>
-    <div class="score-grid">
-      <span class="label">Your score</span>   <span class="value score-big">${myScore}</span>
-      <span class="label">Opponent score</span><span class="value score-big">${oppScore}</span>
-      <span class="label">Auto pts</span>      <span class="value">${myAuto}</span>
-      <span class="label">Foul pts received</span><span class="value">${myFoul}</span>
+    <div class="lm-header">
+      <div class="match-desc">${escHtml(description)}</div>
+      ${allianceHTML(alliance)}
+    </div>
+    <div class="lm-scores">
+      <div class="lm-result ${rc}">${result}</div>
+      <div class="lm-score-item">
+        <span class="lm-score-label">Team</span>
+        <span class="lm-score-val">${myScore}</span>
+      </div>
+      <div class="lm-score-sep">vs</div>
+      <div class="lm-score-item">
+        <span class="lm-score-label">Opp</span>
+        <span class="lm-score-val">${oppScore}</span>
+      </div>
+      <div class="lm-score-item">
+        <span class="lm-score-label">Auto</span>
+        <span class="lm-score-val">${myAuto}</span>
+      </div>
+      <div class="lm-score-item">
+        <span class="lm-score-label">Foul</span>
+        <span class="lm-score-val">${myFoul}</span>
+      </div>
     </div>
   `;
 }
@@ -694,6 +706,11 @@ async function loadDashboard() {
 
     document.getElementById('eventName').textContent = r.eventName;
     document.getElementById('teamName').textContent  = r.teamName;
+
+    const teamLabel = cfg.teamNumber ? `${cfg.teamNumber} —` : '';
+    document.getElementById('titleLastMatch').textContent      = `${teamLabel} Last Match`;
+    document.getElementById('titleNextMatch').textContent      = `${teamLabel} Next Match`;
+    document.getElementById('titleFollowingMatch').textContent = `${teamLabel} Following Match`;
 
     const totalTeams = rankingsData?.Rankings?.length || 0;
     renderRanking(r.rankEntry, totalTeams);
