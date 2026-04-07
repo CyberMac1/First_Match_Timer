@@ -10,24 +10,26 @@ const FRC_API_VERSION = 'v2.0';
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Expose server-side config to the frontend (no secrets exposed)
+app.get('/config', (req, res) => {
+  res.json({
+    testModeEnabled: process.env.TEST_MODE_ENABLED === 'true',
+    hasCredentials:  !!(process.env.FRC_USERNAME && process.env.FRC_API_KEY),
+  });
+});
+
 // Proxy all /api/frc/* requests to the FRC API
 app.get('/api/frc/*', (req, res) => {
-  // Build the upstream path: /v2.0/{rest of path}
-  const remainder = req.path.replace(/^\/api\/frc/, '');
-  const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+  const remainder    = req.path.replace(/^\/api\/frc/, '');
+  const queryString  = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
   const upstreamPath = `/${FRC_API_VERSION}${remainder}${queryString}`;
 
-  // Resolve auth: .env credentials take priority over browser-supplied header
-  let authHeader;
-  if (process.env.FRC_USERNAME && process.env.FRC_API_KEY) {
-    const encoded = Buffer.from(`${process.env.FRC_USERNAME}:${process.env.FRC_API_KEY}`).toString('base64');
-    authHeader = `Basic ${encoded}`;
-  } else if (req.headers['x-frc-auth']) {
-    // Browser sends pre-encoded Base64 string via X-FRC-Auth header
-    authHeader = `Basic ${req.headers['x-frc-auth']}`;
-  } else {
-    return res.status(401).json({ error: 'No FRC API credentials. Add to .env or enter in dashboard Settings.' });
+  if (!process.env.FRC_USERNAME || !process.env.FRC_API_KEY) {
+    return res.status(401).json({ error: 'FRC API credentials not configured. Set FRC_USERNAME and FRC_API_KEY in .env' });
   }
+
+  const encoded    = Buffer.from(`${process.env.FRC_USERNAME}:${process.env.FRC_API_KEY}`).toString('base64');
+  const authHeader = `Basic ${encoded}`;
 
   const options = {
     hostname: FRC_API_HOST,
@@ -43,7 +45,6 @@ app.get('/api/frc/*', (req, res) => {
   const proxyReq = https.request(options, (proxyRes) => {
     res.status(proxyRes.statusCode);
     res.set('Content-Type', proxyRes.headers['content-type'] || 'application/json');
-    // Stream response directly to client
     proxyRes.pipe(res);
   });
 
@@ -58,6 +59,7 @@ app.get('/api/frc/*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`\n✅  FRC Dashboard  →  http://localhost:${PORT}\n`);
   if (!process.env.FRC_USERNAME || !process.env.FRC_API_KEY) {
-    console.log('⚠️   No credentials found in .env — enter them via the dashboard Settings panel.\n');
+    console.log('⚠️   Set FRC_USERNAME and FRC_API_KEY in a .env file to connect to the FRC API.\n');
   }
+  console.log(`   Test mode: ${process.env.TEST_MODE_ENABLED === 'true' ? 'ENABLED' : 'disabled'}\n`);
 });

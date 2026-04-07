@@ -344,35 +344,28 @@
   <div class="modal">
     <button class="modal-close" id="closeSettingsBtn">✕</button>
     <h2>Dashboard Settings</h2>
-
-    <div class="form-row">
-      <div class="form-group">
-        <label>FRC API Username</label>
-        <input type="text" id="cfgUsername" placeholder="your_username" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label>API Key / Password</label>
-        <input type="password" id="cfgApiKey" placeholder="••••••••••••••••" autocomplete="off" />
-      </div>
-    </div>
-    <div class="form-note">
-      Get credentials at <strong>frc-events.firstinspires.org/services/API</strong> — or set in a <code>.env</code> file on the server (server credentials take priority).
-    </div>
-
-    <div class="form-row">
-      <div class="form-group">
-        <label>Season Year</label>
-        <input type="number" id="cfgSeason" placeholder="2026" min="2015" max="2099" />
-      </div>
-      <div class="form-group">
-        <label>Event Code</label>
-        <input type="text" id="cfgEventCode" placeholder="TXHOU" autocomplete="off" style="text-transform:uppercase" />
-      </div>
+    <div class="form-note" id="credentialsNote" style="display:none">
+      ⚠️ No API credentials detected — set <code>FRC_USERNAME</code> and <code>FRC_API_KEY</code> in the server <code>.env</code> file.
     </div>
 
     <div class="form-group">
       <label>Team Number</label>
       <input type="number" id="cfgTeamNumber" placeholder="1234" min="1" max="99999" />
+    </div>
+
+    <div class="form-group">
+      <label>Season Year</label>
+      <input type="number" id="cfgSeason" placeholder="2026" min="2015" max="2099" />
+    </div>
+
+    <div class="form-group">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        Event
+        <span id="eventsStatus" style="font-size:.7rem;color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none"></span>
+      </label>
+      <select id="cfgEventSelect">
+        <option value="">— enter team number &amp; season first —</option>
+      </select>
     </div>
 
     <div class="form-group">
@@ -392,8 +385,7 @@ const STORAGE_KEY = 'frc_dashboard_v1';
 const REFRESH_INTERVAL_MS = 60_000;
 
 function defaultConfig() {
-  return { username: '', apiKey: '', season: new Date().getFullYear(),
-           eventCode: '', teamNumber: '', delaySample: 5 };
+  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '', delaySample: 5 };
 }
 let cfg = Object.assign(defaultConfig(), loadConfig());
 function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
@@ -416,10 +408,7 @@ function getCurrentTime() {
 // ═══════════════════════════════════════════════════════════════════
 async function apiFetch(path, params = {}) {
   const qs  = Object.keys(params).length ? '?' + new URLSearchParams(params) : '';
-  const url = `/api/frc${path}${qs}`;
-  const headers = {};
-  if (cfg.username && cfg.apiKey) headers['X-FRC-Auth'] = btoa(`${cfg.username}:${cfg.apiKey}`);
-  const res  = await fetch(url, { headers });
+  const res  = await fetch(`/api/frc${path}${qs}`);
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error || json?.message || `HTTP ${res.status}`);
   return json;
@@ -600,20 +589,20 @@ function renderLastMatch(lastMatch) {
     <div class="lm-scores">
       <div class="lm-result ${rc}">${result}</div>
       <div class="lm-score-item">
-        <span class="lm-score-label">Team</span>
+        <span class="lm-score-label">Team Score</span>
         <span class="lm-score-val">${myScore}</span>
       </div>
       <div class="lm-score-sep">vs</div>
       <div class="lm-score-item">
-        <span class="lm-score-label">Opp</span>
+        <span class="lm-score-label">Opponent</span>
         <span class="lm-score-val">${oppScore}</span>
       </div>
       <div class="lm-score-item">
-        <span class="lm-score-label">Auto</span>
+        <span class="lm-score-label">Auto Pts</span>
         <span class="lm-score-val">${myAuto}</span>
       </div>
       <div class="lm-score-item">
-        <span class="lm-score-label">Foul</span>
+        <span class="lm-score-label">Fouls Rcvd</span>
         <span class="lm-score-val">${myFoul}</span>
       </div>
     </div>
@@ -716,8 +705,11 @@ function tickCountdown() {
 //  STATUS
 // ═══════════════════════════════════════════════════════════════════
 function setStatus(type, msg) {
-  document.getElementById('statusBar').className  = `status-${type}`;
-  document.getElementById('statusText').textContent = msg;
+  document.getElementById('statusBar').className = `status-${type}`;
+  const txt = document.getElementById('statusText');
+  txt.textContent  = msg;
+  txt.dataset.base = msg; // baseline for auto-refresh countdown overlay
+  if (type === 'ok') refreshCountdown = REFRESH_INTERVAL_MS / 1000;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -803,34 +795,107 @@ function clearTestMode() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  AUTO-REFRESH
+//  AUTO-REFRESH WITH COUNTDOWN
 // ═══════════════════════════════════════════════════════════════════
 let autoRefreshTimer = null;
+let refreshCountdown = REFRESH_INTERVAL_MS / 1000;
+
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = setInterval(() => { if (!test.enabled) loadDashboard(); }, REFRESH_INTERVAL_MS);
+  refreshCountdown = REFRESH_INTERVAL_MS / 1000;
+  autoRefreshTimer = setInterval(() => {
+    refreshCountdown--;
+    updateRefreshStatus();
+    if (refreshCountdown <= 0) {
+      refreshCountdown = REFRESH_INTERVAL_MS / 1000;
+      if (!test.enabled) loadDashboard();
+    }
+  }, 1000);
+}
+
+function updateRefreshStatus() {
+  const bar = document.getElementById('statusBar');
+  if (!bar.classList.contains('status-ok')) return; // don't overwrite loading/error
+  const txt = document.getElementById('statusText');
+  const base = txt.dataset.base || txt.textContent.split(' · ')[0];
+  txt.dataset.base = base;
+  txt.textContent = `${base} · refreshing in ${refreshCountdown}s`;
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  SETTINGS
 // ═══════════════════════════════════════════════════════════════════
+let eventsDebounce = null;
+
+async function fetchTeamEvents() {
+  const team   = document.getElementById('cfgTeamNumber').value.trim();
+  const season = document.getElementById('cfgSeason').value.trim();
+  const sel    = document.getElementById('cfgEventSelect');
+  const status = document.getElementById('eventsStatus');
+
+  if (!team || !season) {
+    sel.innerHTML = '<option value="">— enter team number &amp; season first —</option>';
+    status.textContent = '';
+    return;
+  }
+
+  status.textContent = 'Loading…';
+  sel.disabled = true;
+  sel.innerHTML = '<option value="">Loading events…</option>';
+
+  try {
+    const data   = await apiFetch(`/${season}/events`, { teamNumber: team });
+    const events = (data.Events || []).sort((a, b) => new Date(a.dateStart) - new Date(b.dateStart));
+
+    sel.innerHTML = '<option value="">— select an event —</option>';
+    events.forEach(ev => {
+      const opt  = document.createElement('option');
+      opt.value  = ev.code;
+      const date = ev.dateStart
+        ? new Date(ev.dateStart).toLocaleDateString([], { month: 'short', day: 'numeric' })
+        : '';
+      opt.textContent = `${ev.name} (${ev.code}) — ${ev.city}, ${ev.stateprov}${date ? ' · ' + date : ''}`;
+      if (ev.code === cfg.eventCode) opt.selected = true;
+      sel.appendChild(opt);
+    });
+
+    status.textContent = events.length ? `${events.length} event${events.length > 1 ? 's' : ''} found` : 'No events found for this team/season';
+    sel.disabled = false;
+  } catch (err) {
+    sel.innerHTML = '<option value="">— failed to load —</option>';
+    status.textContent = `Error: ${err.message}`;
+    sel.disabled = false;
+  }
+}
+
+function scheduleEventsFetch() {
+  clearTimeout(eventsDebounce);
+  eventsDebounce = setTimeout(fetchTeamEvents, 600);
+}
+
 function openSettings() {
-  document.getElementById('cfgUsername').value        = cfg.username || '';
-  document.getElementById('cfgApiKey').value          = cfg.apiKey   || '';
-  document.getElementById('cfgSeason').value          = cfg.season   || new Date().getFullYear();
-  document.getElementById('cfgEventCode').value       = cfg.eventCode || '';
-  document.getElementById('cfgTeamNumber').value      = cfg.teamNumber || '';
-  document.getElementById('cfgDelaySample').value     = cfg.delaySample || 5;
+  document.getElementById('cfgTeamNumber').value  = cfg.teamNumber || '';
+  document.getElementById('cfgSeason').value      = cfg.season     || new Date().getFullYear();
+  document.getElementById('cfgDelaySample').value = cfg.delaySample || 5;
+
+  // Pre-populate event dropdown then mark the saved selection
+  const sel = document.getElementById('cfgEventSelect');
+  sel.innerHTML = '<option value="">— enter team number &amp; season first —</option>';
+  document.getElementById('eventsStatus').textContent = '';
+
+  if (cfg.teamNumber && cfg.season) fetchTeamEvents();
+
   document.getElementById('settingsOverlay').classList.remove('hidden');
 }
+
 function closeSettings() { document.getElementById('settingsOverlay').classList.add('hidden'); }
+
 function saveSettings() {
-  cfg.username        = document.getElementById('cfgUsername').value.trim();
-  cfg.apiKey          = document.getElementById('cfgApiKey').value.trim();
-  cfg.season          = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
-  cfg.eventCode       = document.getElementById('cfgEventCode').value.trim().toUpperCase();
-  cfg.teamNumber      = document.getElementById('cfgTeamNumber').value.trim();
-  cfg.delaySample     = parseInt(document.getElementById('cfgDelaySample').value) || 5;
+  const sel = document.getElementById('cfgEventSelect');
+  cfg.season      = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
+  cfg.teamNumber  = document.getElementById('cfgTeamNumber').value.trim();
+  cfg.eventCode   = sel.value.trim().toUpperCase();
+  cfg.delaySample = parseInt(document.getElementById('cfgDelaySample').value) || 5;
   saveConfig(); closeSettings(); loadDashboard();
 }
 
@@ -846,10 +911,24 @@ document.getElementById('clearTestBtn').addEventListener('click', clearTestMode)
 document.getElementById('settingsOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('settingsOverlay')) closeSettings();
 });
+// Trigger event list reload when team or season changes inside the modal
+document.getElementById('cfgTeamNumber').addEventListener('input', scheduleEventsFetch);
+document.getElementById('cfgSeason').addEventListener('input', scheduleEventsFetch);
 
 // Pre-fill test time
-const _now = new Date(); _now.setSeconds(0,0);
-document.getElementById('testCurrentTime').value = _now.toISOString().slice(0,16);
+const _now = new Date(); _now.setSeconds(0, 0);
+document.getElementById('testCurrentTime').value = _now.toISOString().slice(0, 16);
+
+// Fetch server config: credentials status + test mode enabled flag
+fetch('/config').then(r => r.json()).then(serverCfg => {
+  if (!serverCfg.hasCredentials) {
+    document.getElementById('credentialsNote').style.display = 'block';
+  }
+  if (!serverCfg.testModeEnabled) {
+    document.getElementById('testPanel').style.display = 'none';
+    document.getElementById('testActiveNotice').style.display = 'none';
+  }
+}).catch(() => {}); // server config is optional
 
 if (cfg.eventCode && cfg.teamNumber) loadDashboard();
 else { setStatus('err', 'No config — open ⚙ Settings.'); openSettings(); }
