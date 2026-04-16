@@ -410,14 +410,6 @@
       <input type="number" id="cfgDelaySample" placeholder="5" min="1" max="20" />
     </div>
 
-    <div class="form-group">
-      <label style="flex-direction:row;align-items:center;gap:.6rem;cursor:pointer">
-        <input type="checkbox" id="cfgShowPractice" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer" />
-        Show Practice Matches
-      </label>
-      <span class="form-note">Include practice matches in the schedule (Last Match, Next Match, etc.)</span>
-    </div>
-
     <button class="btn-save" id="saveSettingsBtn">Save & Refresh</button>
   </div>
 </div>
@@ -441,7 +433,7 @@ const STORAGE_KEY = 'frc_dashboard_v1';
 const REFRESH_INTERVAL_MS = 60_000;
 
 function defaultConfig() {
-  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '', delaySample: 5, showPracticeMatches: false };
+  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '', delaySample: 5 };
 }
 let cfg = Object.assign(defaultConfig(), loadConfig());
 function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
@@ -779,19 +771,15 @@ async function loadDashboard() {
   try {
     const season = cfg.season, event = cfg.eventCode.toUpperCase();
 
-    const [qualHybrid, playoffHybrid, practiceHybrid, teamData, eventData, rankingsData] = await Promise.all([
+    const [qualHybrid, playoffHybrid, teamData, eventData, rankingsData] = await Promise.all([
       apiFetch(`/${season}/schedule/${event}/qual/hybrid`),
       apiFetch(`/${season}/schedule/${event}/playoff/hybrid`).catch(() => ({ Schedule: [] })),
-      cfg.showPracticeMatches
-        ? apiFetch(`/${season}/schedule/${event}/practice`).catch(() => ({ Schedule: [] }))
-        : Promise.resolve({ Schedule: [] }),
       apiFetch(`/${season}/teams`, { teamNumber: cfg.teamNumber }),
       apiFetch(`/${season}/events`, { eventCode: event }),
       apiFetch(`/${season}/rankings/${event}`),
     ]);
 
     const mergedSchedule = [
-      ...(practiceHybrid?.Schedule || []),
       ...(qualHybrid?.Schedule || []),
       ...(playoffHybrid?.Schedule || []),
     ];
@@ -1001,10 +989,9 @@ function scheduleEventsFetch() {
 }
 
 function openSettings() {
-  document.getElementById('cfgTeamNumber').value    = cfg.teamNumber || '';
-  document.getElementById('cfgSeason').value        = cfg.season     || new Date().getFullYear();
-  document.getElementById('cfgDelaySample').value   = cfg.delaySample || 5;
-  document.getElementById('cfgShowPractice').checked = !!cfg.showPracticeMatches;
+  document.getElementById('cfgTeamNumber').value  = cfg.teamNumber || '';
+  document.getElementById('cfgSeason').value      = cfg.season     || new Date().getFullYear();
+  document.getElementById('cfgDelaySample').value = cfg.delaySample || 5;
 
   // Pre-populate event dropdown then mark the saved selection
   const sel = document.getElementById('cfgEventSelect');
@@ -1020,11 +1007,10 @@ function closeSettings() { document.getElementById('settingsOverlay').classList.
 
 function saveSettings() {
   const sel = document.getElementById('cfgEventSelect');
-  cfg.season              = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
-  cfg.teamNumber          = document.getElementById('cfgTeamNumber').value.trim();
-  cfg.eventCode           = sel.value.trim().toUpperCase();
-  cfg.delaySample         = parseInt(document.getElementById('cfgDelaySample').value) || 5;
-  cfg.showPracticeMatches = document.getElementById('cfgShowPractice').checked;
+  cfg.season      = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
+  cfg.teamNumber  = document.getElementById('cfgTeamNumber').value.trim();
+  cfg.eventCode   = sel.value.trim().toUpperCase();
+  cfg.delaySample = parseInt(document.getElementById('cfgDelaySample').value) || 5;
   saveConfig(); closeSettings(); loadDashboard();
 }
 
