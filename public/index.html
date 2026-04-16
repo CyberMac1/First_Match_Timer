@@ -129,14 +129,39 @@
       animation: pulse .9s ease-in-out infinite;
     }
 
-    /* ── Last match compact row ───────────────────────────────────── */
-    .lm-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
-    .lm-scores { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
-    .lm-result { font-size: 1.25rem; font-weight: 800; letter-spacing: .04em; min-width: 3rem; }
-    .lm-score-item { display: flex; flex-direction: column; align-items: center; gap: 0; }
-    .lm-score-label { font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-    .lm-score-val   { font-size: 1.3rem; font-weight: 800; line-height: 1.1; }
-    .lm-score-sep   { color: var(--muted); font-size: .75rem; margin-top: .8rem; }
+    /* ── Last Played card ────────────────────────────────────────── */
+    .lm-top {
+      display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    }
+    .lm-match-name { font-size: .95rem; font-weight: 700; color: var(--muted); }
+    .lm-result-badge {
+      padding: .3rem .85rem; border-radius: 7px; font-size: .85rem; font-weight: 800;
+      letter-spacing: .06em; text-transform: uppercase; flex-shrink: 0;
+    }
+    .lm-result-badge.win  { background: #06d6a022; border: 1px solid var(--green);  color: var(--green); }
+    .lm-result-badge.loss { background: #e6394622; border: 1px solid var(--red);    color: #ff9aa2; }
+    .lm-result-badge.tie  { background: #ffd16622; border: 1px solid var(--yellow); color: var(--yellow); }
+    .lm-result-badge.none { background: transparent; border: 1px solid var(--card-border); color: var(--muted); }
+    .lm-scoreboard {
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+      gap: .4rem; text-align: center;
+      background: #0a0a1a; border-radius: 10px; padding: .6rem .75rem;
+      border: 1px solid var(--card-border);
+    }
+    .lm-score-side { display: flex; flex-direction: column; gap: .1rem; }
+    .lm-score-side.mine .lm-score-num { color: var(--text); }
+    .lm-score-side.opp  .lm-score-num { color: var(--muted); }
+    .lm-score-label { font-size: .6rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .lm-score-num   { font-size: 2rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .lm-vs          { font-size: .7rem; color: var(--muted); font-weight: 600; }
+    .lm-stats { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; }
+    .lm-stat {
+      display: flex; flex-direction: column; align-items: center;
+      background: #ffffff06; border: 1px solid var(--card-border);
+      border-radius: 8px; padding: .35rem .5rem;
+    }
+    .lm-stat-label { font-size: .58rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .lm-stat-val   { font-size: 1.1rem; font-weight: 800; line-height: 1.1; }
 
     /* ── Current match card ───────────────────────────────────────── */
     .current-match-body {
@@ -623,29 +648,32 @@ function renderLastMatch(lastMatch) {
   const el = document.getElementById('lastMatchContent');
   if (!lastMatch) { el.innerHTML = '<div class="empty-state">No matches played yet.</div>'; return; }
   const { description, alliance, myScore, oppScore, myAuto, myFoul, result } = lastMatch;
-  const rc = { WIN: 'result-win', LOSS: 'result-loss', TIE: 'result-tie' }[result] || '';
+  const badgeClass = { WIN: 'win', LOSS: 'loss', TIE: 'tie' }[result] || 'none';
+  const alLower = (alliance || '').toLowerCase();
   el.innerHTML = `
-    <div class="lm-header">
-      <div class="match-desc">${escHtml(description)}</div>
+    <div class="lm-top">
+      <span class="lm-match-name">${escHtml(description)}</span>
+      <span class="lm-result-badge ${badgeClass}">${result}</span>
     </div>
-    <div class="lm-scores">
-      <div class="lm-result ${rc}">${result}</div>
-      <div class="lm-score-item">
-        <span class="lm-score-label">Team Score</span>
-        <span class="lm-score-val">${myScore}</span>
+    <div class="lm-scoreboard">
+      <div class="lm-score-side mine">
+        <span class="lm-score-label">Our Score</span>
+        <span class="lm-score-num">${myScore}</span>
       </div>
-      <div class="lm-score-sep">vs</div>
-      <div class="lm-score-item">
+      <span class="lm-vs">vs</span>
+      <div class="lm-score-side opp">
         <span class="lm-score-label">Opponent</span>
-        <span class="lm-score-val">${oppScore}</span>
+        <span class="lm-score-num">${oppScore}</span>
       </div>
-      <div class="lm-score-item">
-        <span class="lm-score-label">Auto Pts</span>
-        <span class="lm-score-val">${myAuto}</span>
+    </div>
+    <div class="lm-stats">
+      <div class="lm-stat">
+        <span class="lm-stat-label">Auto Points</span>
+        <span class="lm-stat-val">${myAuto}</span>
       </div>
-      <div class="lm-score-item">
-        <span class="lm-score-label">Fouls Rcvd</span>
-        <span class="lm-score-val">${myFoul}</span>
+      <div class="lm-stat">
+        <span class="lm-stat-label">Fouls Received</span>
+        <span class="lm-stat-val">${myFoul}</span>
       </div>
     </div>
   `;
