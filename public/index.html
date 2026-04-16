@@ -110,6 +110,11 @@
     .match-desc { font-size: 1.05rem; font-weight: 700; }
 
     /* ── Queuing highlight ────────────────────────────────────────── */
+    .card-next {
+      border-color: var(--green);
+      box-shadow: 0 0 12px 1px #06d6a025;
+    }
+    .card-next .card-label { color: var(--green); }
     .card-queuing {
       border-color: var(--orange) !important;
       background: linear-gradient(to right, #1c1000, var(--card-bg));
@@ -377,7 +382,7 @@
   </div>
 
   <!-- ── Next Match ─────────────────────────────────────────────────── -->
-  <div class="card" id="nextMatchCard">
+  <div class="card card-next" id="nextMatchCard">
     <div class="card-label">Next Match</div>
     <div class="card-body" id="nextMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
