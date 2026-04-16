@@ -783,7 +783,7 @@ async function loadDashboard() {
       apiFetch(`/${season}/schedule/${event}/qual/hybrid`),
       apiFetch(`/${season}/schedule/${event}/playoff/hybrid`).catch(() => ({ Schedule: [] })),
       cfg.showPracticeMatches
-        ? apiFetch(`/${season}/schedule/${event}/practice/hybrid`).catch(() => ({ Schedule: [] }))
+        ? apiFetch(`/${season}/schedule/${event}/practice`).catch(() => ({ Schedule: [] }))
         : Promise.resolve({ Schedule: [] }),
       apiFetch(`/${season}/teams`, { teamNumber: cfg.teamNumber }),
       apiFetch(`/${season}/events`, { eventCode: event }),
