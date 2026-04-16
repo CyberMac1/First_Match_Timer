@@ -1,19 +1,18 @@
 # FRC Match Dashboard
 
-A real-time web dashboard for FIRST Robotics Competition (FRC) teams to monitor match status during competition events. Displays last match results, next match countdown, bumper color, team ranking, and event schedule — all pulled live from the official FRC Events API.
+A real-time web dashboard for FIRST Robotics Competition (FRC) teams to monitor match status during competition events. Displays last match results, next match countdown, bumper color, team ranking, and upcoming schedule — all pulled live from the official FRC Events API.
 
 ---
 
 ## Features
 
 - **Event & Team Header** — Event name, team name, and live ranking chips (rank, W-L-T record, average score)
-- **Currently On Field** — Shows the match number currently being played at the event
+- **Last Recorded** — Shows the most recent match played at the event
 - **Last Match** — Your team's most recent result: alliance, win/loss/tie, team score vs opponent, auto points, fouls received
-- **Next Match** — Bumper color (RED/BLUE), scheduled start time, estimated start time with delay calculation, and a live countdown timer
-- **Following Match** — The match after next: bumper color and estimated start time
+- **Next Match** — Bumper color (RED/BLUE), start time from the API, and a live countdown timer
+- **Following Match** — The match after next: bumper color and start time
 - **Queuing Alert** — The Next Match card glows orange with a pulsing "Queuing" badge when the field is within 2 matches of your team's next match
-- **Schedule View** — The "☰ Schedule" button opens a modal listing all upcoming team matches with short names (Q10, P3), scheduled and estimated times, and color-coded alliance rosters — your team is highlighted red or blue to match your bumper
-- **Practice Match Toggle** — Settings option to include practice matches in all dashboard cards and the schedule view
+- **Schedule View** — The "☰ Schedule" button opens a modal listing all upcoming team matches with short names (Q10, P3), start times, and color-coded alliance rosters — your team highlighted red or blue to match your bumper
 - **Auto-Refresh** — Data refreshes automatically every 60 seconds with a visible countdown in the status bar
 - **Test Mode** — Simulate any prior match as "current" with a fake clock to verify dashboard behavior (enabled via `.env`)
 
@@ -25,7 +24,7 @@ The dashboard is a Node.js/Express server that:
 1. Serves the single-page HTML dashboard
 2. Proxies requests to the [FRC Events API](https://frc-events.firstinspires.org/services/API) so credentials never leave the server
 
-**Delay estimation** — The server fetches the hybrid schedule (scheduled + actual start times) for all matches. It averages the difference between `actualStartTime` and `startTime` across the last N played matches (configurable) and adds that offset to the next match's scheduled time to produce an estimated start.
+**Start times** — The dashboard uses `startTime` directly from the FRC API, which already reflects any event delay. No client-side delay calculation is needed.
 
 **Queuing detection** — Compares the array position of the current field match against the team's next match in the merged qualification + playoff schedule. Triggers when the gap is ≤ 2 matches.
 
@@ -43,7 +42,7 @@ The dashboard is a Node.js/Express server that:
 ### 1. Clone the repository
 
 ```bash
-git clone git@github.com:CyberMac1/First_Match_Timer.git
+git clone https://github.com/CyberMac1/First_Match_Timer.git
 cd First_Match_Timer
 ```
 
@@ -96,8 +95,6 @@ Open the **⚙ Settings** panel in the dashboard and fill in:
 | Team Number | Your FRC team number (e.g. `1234`) |
 | Season Year | Competition year (e.g. `2026`) |
 | Event | Dropdown auto-populated from the API once team + season are entered |
-| Delay Sample Size | Number of recent matches used to calculate the schedule delay (default: 5) |
-| Show Practice Matches | Include practice matches in all dashboard cards and the schedule view (default: off) |
 
 API credentials are **not** in the settings UI — set them in `.env` only.
 
@@ -142,7 +139,6 @@ All calls go through the server proxy at `/api/frc/*` → `https://frc-api.first
 |---|---|
 | `GET /{season}/schedule/{event}/qual/hybrid` | Qualification schedule with actual start times |
 | `GET /{season}/schedule/{event}/playoff/hybrid` | Playoff schedule with actual start times |
-| `GET /{season}/schedule/{event}/practice/hybrid` | Practice schedule (fetched only when practice matches are enabled) |
 | `GET /{season}/events?teamNumber={team}` | All events a team is registered in (settings dropdown) |
 | `GET /{season}/events?eventCode={code}` | Event name and details for the header |
 | `GET /{season}/teams?teamNumber={team}` | Team name |
@@ -157,7 +153,7 @@ Enable in `.env` by setting `TEST_MODE_ENABLED=true` and restarting the server. 
 **How to use:**
 1. Select any previously-played match from the dropdown as the "last played" match
 2. Set a simulated current time
-3. Click **Apply** — the dashboard recalculates delays, countdown, and queuing status as if it were that moment in time
+3. Click **Apply** — the dashboard recalculates the countdown and queuing status as if it were that moment in time
 
 The simulated clock ticks forward in real time from the moment you apply it, so the countdown timer is live.
 
