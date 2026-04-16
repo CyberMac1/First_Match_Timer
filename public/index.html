@@ -258,6 +258,40 @@
     @media (max-width: 550px) { .test-grid { grid-template-columns: 1fr; } }
     .btn-apply { background: var(--yellow); color: #1a1a00; border-radius: 8px; padding: .55rem 1.1rem; font-weight: 700; font-size: .82rem; }
     .btn-clear  { background: #ffffff22; border: 1px solid var(--card-border); color: var(--muted); border-radius: 8px; padding: .55rem 1.1rem; font-size: .82rem; }
+
+    /* ── Schedule modal ───────────────────────────────────────────── */
+    .schedule-list { display: flex; flex-direction: column; gap: .5rem; }
+    .sched-row {
+      background: var(--bg); border: 1px solid var(--card-border);
+      border-radius: 10px; padding: .65rem .85rem;
+      display: grid; grid-template-columns: 3rem 1fr; gap: .55rem .75rem; align-items: start;
+    }
+    .sched-badge {
+      grid-row: 1 / 3; align-self: center;
+      font-size: .75rem; font-weight: 800; text-align: center;
+      padding: .3rem .2rem; border-radius: 6px; letter-spacing: .03em;
+      background: #ffffff0d; border: 1px solid var(--card-border); color: var(--text);
+    }
+    .sched-times { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .sched-time-item { display: flex; flex-direction: column; gap: .05rem; }
+    .sched-time-label { font-size: .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .sched-time-val   { font-size: .82rem; font-weight: 700; }
+    .sched-time-val.est { color: var(--yellow); }
+    .sched-alliances { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+    .sched-alliance { display: flex; align-items: center; gap: .3rem; }
+    .sched-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .sched-dot.red  { background: var(--red); }
+    .sched-dot.blue { background: var(--blue); }
+    .sched-teams { display: flex; gap: .3rem; flex-wrap: wrap; }
+    .team-chip {
+      font-size: .72rem; font-weight: 700; padding: .15rem .45rem;
+      border-radius: 5px; border: 1px solid var(--card-border);
+      background: #ffffff08; color: var(--muted);
+    }
+    .team-chip.mine-blue { background: #2979ff22; border-color: var(--blue); color: #90bfff; }
+    .team-chip.mine-red  { background: #e6394622; border-color: var(--red);  color: #ff9aa2; }
+    .sched-sep { width: 1px; height: 14px; background: var(--card-border); flex-shrink: 0; }
+    .schedule-empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 2rem 0; }
   </style>
 </head>
 <body>
@@ -274,7 +308,10 @@
     </div>
     <div class="header-btns">
       <button class="btn btn-primary" id="settingsBtn">⚙ Settings</button>
-      <button class="btn btn-ghost"   id="refreshBtn">↻ Refresh</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn btn-ghost" id="scheduleBtn">☰ Schedule</button>
+        <button class="btn btn-ghost" id="refreshBtn">↻ Refresh</button>
+      </div>
     </div>
   </header>
 
@@ -373,7 +410,26 @@
       <input type="number" id="cfgDelaySample" placeholder="5" min="1" max="20" />
     </div>
 
+    <div class="form-group">
+      <label style="flex-direction:row;align-items:center;gap:.6rem;cursor:pointer">
+        <input type="checkbox" id="cfgShowPractice" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer" />
+        Show Practice Matches
+      </label>
+      <span class="form-note">Include practice matches in the schedule (Last Match, Next Match, etc.)</span>
+    </div>
+
     <button class="btn-save" id="saveSettingsBtn">Save & Refresh</button>
+  </div>
+</div>
+
+<!-- ── Schedule Modal ───────────────────────────────────────────────── -->
+<div class="overlay hidden" id="scheduleOverlay">
+  <div class="modal" style="width:min(580px,95vw)">
+    <button class="modal-close" id="closeScheduleBtn">✕</button>
+    <h2>Upcoming Matches</h2>
+    <div id="scheduleList" class="schedule-list">
+      <div class="schedule-empty">Load data first.</div>
+    </div>
   </div>
 </div>
 
@@ -385,7 +441,7 @@ const STORAGE_KEY = 'frc_dashboard_v1';
 const REFRESH_INTERVAL_MS = 60_000;
 
 function defaultConfig() {
-  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '', delaySample: 5 };
+  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '', delaySample: 5, showPracticeMatches: false };
 }
 let cfg = Object.assign(defaultConfig(), loadConfig());
 function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
@@ -723,15 +779,19 @@ async function loadDashboard() {
   try {
     const season = cfg.season, event = cfg.eventCode.toUpperCase();
 
-    const [qualHybrid, playoffHybrid, teamData, eventData, rankingsData] = await Promise.all([
+    const [qualHybrid, playoffHybrid, practiceHybrid, teamData, eventData, rankingsData] = await Promise.all([
       apiFetch(`/${season}/schedule/${event}/qual/hybrid`),
       apiFetch(`/${season}/schedule/${event}/playoff/hybrid`).catch(() => ({ Schedule: [] })),
+      cfg.showPracticeMatches
+        ? apiFetch(`/${season}/schedule/${event}/practice/hybrid`).catch(() => ({ Schedule: [] }))
+        : Promise.resolve({ Schedule: [] }),
       apiFetch(`/${season}/teams`, { teamNumber: cfg.teamNumber }),
       apiFetch(`/${season}/events`, { eventCode: event }),
       apiFetch(`/${season}/rankings/${event}`),
     ]);
 
     const mergedSchedule = [
+      ...(practiceHybrid?.Schedule || []),
       ...(qualHybrid?.Schedule || []),
       ...(playoffHybrid?.Schedule || []),
     ];
@@ -749,6 +809,7 @@ async function loadDashboard() {
     renderNextMatch(r.nextMatch, r.delayInfo, r.isQueuing);
     renderFollowingMatch(r.followingMatch, r.delayInfo);
 
+    cachedScheduleData = { teamMatches: r.teamMatches, delayInfo: r.delayInfo, teamNum: parseInt(cfg.teamNumber) };
     populateTestDropdown(r.teamMatches);
 
     const ts = getCurrentTime().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -759,6 +820,72 @@ async function loadDashboard() {
     setStatus('err', `Error: ${err.message}`);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  SCHEDULE MODAL
+// ═══════════════════════════════════════════════════════════════════
+let cachedScheduleData = null; // { teamMatches, delayInfo, teamNum }
+
+function shortMatchName(m) {
+  const level = (m.tournamentLevel || '').toLowerCase();
+  if (level.includes('practice'))     return `Prac${m.matchNumber}`;
+  if (level.includes('playoff'))      return `P${m.matchNumber}`;
+  return `Q${m.matchNumber}`;
+}
+
+function renderScheduleModal() {
+  const el = document.getElementById('scheduleList');
+  if (!cachedScheduleData) {
+    el.innerHTML = '<div class="schedule-empty">No data loaded — refresh the dashboard first.</div>';
+    return;
+  }
+  const { teamMatches, delayInfo, teamNum } = cachedScheduleData;
+  const upcoming = teamMatches.filter(m => !isValidDate(m.actualStartTime));
+  if (!upcoming.length) {
+    el.innerHTML = '<div class="schedule-empty">No upcoming matches.</div>';
+    return;
+  }
+  el.innerHTML = upcoming.map(m => {
+    const sch = isValidDate(m.startTime) ? new Date(m.startTime) : null;
+    const est = sch ? new Date(sch.getTime() + delayInfo.avgMs) : null;
+    const red  = (m.teams || []).filter(t => t.station?.toLowerCase().startsWith('red'))
+                                .sort((a,b) => a.station.localeCompare(b.station));
+    const blue = (m.teams || []).filter(t => t.station?.toLowerCase().startsWith('blue'))
+                                .sort((a,b) => a.station.localeCompare(b.station));
+    const chip = (t, alliance) => `<span class="team-chip${t.teamNumber === teamNum ? ' mine-' + alliance : ''}">${t.teamNumber}</span>`;
+    return `
+      <div class="sched-row">
+        <div class="sched-badge">${escHtml(shortMatchName(m))}</div>
+        <div class="sched-times">
+          <div class="sched-time-item">
+            <span class="sched-time-label">Scheduled</span>
+            <span class="sched-time-val">${fmtTime(sch)}</span>
+          </div>
+          ${est ? `<div class="sched-time-item">
+            <span class="sched-time-label">Estimated</span>
+            <span class="sched-time-val est">~${fmtTime(est)}</span>
+          </div>` : ''}
+        </div>
+        <div class="sched-alliances">
+          <div class="sched-alliance">
+            <span class="sched-dot red"></span>
+            <div class="sched-teams">${red.map(t => chip(t, 'red')).join('')}</div>
+          </div>
+          <div class="sched-sep"></div>
+          <div class="sched-alliance">
+            <span class="sched-dot blue"></span>
+            <div class="sched-teams">${blue.map(t => chip(t, 'blue')).join('')}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openSchedule()  {
+  renderScheduleModal();
+  document.getElementById('scheduleOverlay').classList.remove('hidden');
+}
+function closeSchedule() { document.getElementById('scheduleOverlay').classList.add('hidden'); }
 
 // ═══════════════════════════════════════════════════════════════════
 //  TEST MODE HELPERS
@@ -874,9 +1001,10 @@ function scheduleEventsFetch() {
 }
 
 function openSettings() {
-  document.getElementById('cfgTeamNumber').value  = cfg.teamNumber || '';
-  document.getElementById('cfgSeason').value      = cfg.season     || new Date().getFullYear();
-  document.getElementById('cfgDelaySample').value = cfg.delaySample || 5;
+  document.getElementById('cfgTeamNumber').value    = cfg.teamNumber || '';
+  document.getElementById('cfgSeason').value        = cfg.season     || new Date().getFullYear();
+  document.getElementById('cfgDelaySample').value   = cfg.delaySample || 5;
+  document.getElementById('cfgShowPractice').checked = !!cfg.showPracticeMatches;
 
   // Pre-populate event dropdown then mark the saved selection
   const sel = document.getElementById('cfgEventSelect');
@@ -892,10 +1020,11 @@ function closeSettings() { document.getElementById('settingsOverlay').classList.
 
 function saveSettings() {
   const sel = document.getElementById('cfgEventSelect');
-  cfg.season      = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
-  cfg.teamNumber  = document.getElementById('cfgTeamNumber').value.trim();
-  cfg.eventCode   = sel.value.trim().toUpperCase();
-  cfg.delaySample = parseInt(document.getElementById('cfgDelaySample').value) || 5;
+  cfg.season              = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
+  cfg.teamNumber          = document.getElementById('cfgTeamNumber').value.trim();
+  cfg.eventCode           = sel.value.trim().toUpperCase();
+  cfg.delaySample         = parseInt(document.getElementById('cfgDelaySample').value) || 5;
+  cfg.showPracticeMatches = document.getElementById('cfgShowPractice').checked;
   saveConfig(); closeSettings(); loadDashboard();
 }
 
@@ -905,11 +1034,16 @@ function saveSettings() {
 document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
 document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+document.getElementById('scheduleBtn').addEventListener('click', openSchedule);
+document.getElementById('closeScheduleBtn').addEventListener('click', closeSchedule);
 document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
 document.getElementById('applyTestBtn').addEventListener('click', applyTestMode);
 document.getElementById('clearTestBtn').addEventListener('click', clearTestMode);
 document.getElementById('settingsOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+});
+document.getElementById('scheduleOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('scheduleOverlay')) closeSchedule();
 });
 // Trigger event list reload when team or season changes inside the modal
 document.getElementById('cfgTeamNumber').addEventListener('input', scheduleEventsFetch);
