@@ -293,6 +293,16 @@
     .team-chip.mine-red  { background: #e6394622; border-color: var(--red);  color: #ff9aa2; }
     .sched-sep { width: 1px; height: 14px; background: var(--card-border); flex-shrink: 0; }
     .schedule-empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 2rem 0; }
+    .sched-row.past { opacity: .45; }
+    .sched-row.past .sched-badge { color: var(--muted); }
+    .sched-result {
+      font-size: .7rem; font-weight: 800; padding: .15rem .45rem;
+      border-radius: 5px; letter-spacing: .05em; text-transform: uppercase;
+      align-self: center;
+    }
+    .sched-result.win  { background: #06d6a022; border: 1px solid var(--green);  color: var(--green); }
+    .sched-result.loss { background: #e6394622; border: 1px solid var(--red);    color: #ff9aa2; }
+    .sched-result.tie  { background: #ffd16622; border: 1px solid var(--yellow); color: var(--yellow); }
   </style>
 </head>
 <body>
@@ -331,13 +341,13 @@
 
   <!-- ── Current Event Match ────────────────────────────────────────── -->
   <div class="card" id="currentMatchCard">
-    <div class="card-label">Last Recorded</div>
+    <div class="card-label">Last</div>
     <div class="card-body" id="currentMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
   <!-- ── Last Match ─────────────────────────────────────────────────── -->
   <div class="card" id="lastMatchCard">
-    <div class="card-label">Last Match</div>
+    <div class="card-label">Last Played</div>
     <div class="card-body" id="lastMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
@@ -549,7 +559,7 @@ function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
   const isQueuing = currentIdx >= 0 && nextIdx2 >= 0 && (nextIdx2 - currentIdx) <= 2;
 
   return { eventName, teamName, rankEntry, lastMatch, nextMatch, followingMatch,
-           currentEventMatch, teamMatches, isQueuing };
+           currentEventMatch, teamMatches, isQueuing, lastIdx };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -772,7 +782,7 @@ async function loadDashboard() {
     renderNextMatch(r.nextMatch, r.isQueuing);
     renderFollowingMatch(r.followingMatch);
 
-    cachedScheduleData = { teamMatches: r.teamMatches, teamNum: parseInt(cfg.teamNumber) };
+    cachedScheduleData = { teamMatches: r.teamMatches, teamNum: parseInt(cfg.teamNumber), lastPlayedIdx: r.lastIdx };
     populateTestDropdown(r.teamMatches);
 
     const ts = getCurrentTime().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -803,26 +813,42 @@ function renderScheduleModal() {
     return;
   }
   const { teamMatches, teamNum } = cachedScheduleData;
-  const upcoming = teamMatches.filter(m => !isValidDate(m.actualStartTime));
-  if (!upcoming.length) {
-    el.innerHTML = '<div class="schedule-empty">No upcoming matches.</div>';
+  if (!teamMatches.length) {
+    el.innerHTML = '<div class="schedule-empty">No matches scheduled.</div>';
     return;
   }
-  el.innerHTML = upcoming.map(m => {
-    const start = isValidDate(m.startTime) ? new Date(m.startTime) : null;
+  el.innerHTML = teamMatches.map(m => {
+    const played = isValidDate(m.actualStartTime);
+    const start  = isValidDate(m.startTime) ? new Date(m.startTime) : null;
+
+    // Win/Loss/Tie for played matches
+    let resultHTML = '';
+    if (played) {
+      const al  = teamAlliance(m, teamNum);
+      const my  = al === 'Red' ? m.scoreRedFinal  : m.scoreBlueFinal;
+      const opp = al === 'Red' ? m.scoreBlueFinal : m.scoreRedFinal;
+      if (my != null && opp != null) {
+        const res = my > opp ? 'win' : my < opp ? 'loss' : 'tie';
+        const label = my > opp ? 'WIN' : my < opp ? 'LOSS' : 'TIE';
+        resultHTML = `<span class="sched-result ${res}">${label}</span>`;
+      }
+    }
+
     const red  = (m.teams || []).filter(t => t.station?.toLowerCase().startsWith('red'))
                                 .sort((a,b) => a.station.localeCompare(b.station));
     const blue = (m.teams || []).filter(t => t.station?.toLowerCase().startsWith('blue'))
                                 .sort((a,b) => a.station.localeCompare(b.station));
     const chip = (t, alliance) => `<span class="team-chip${t.teamNumber === teamNum ? ' mine-' + alliance : ''}">${t.teamNumber}</span>`;
+
     return `
-      <div class="sched-row">
+      <div class="sched-row${played ? ' past' : ''}">
         <div class="sched-badge">${escHtml(shortMatchName(m))}</div>
         <div class="sched-times">
           <div class="sched-time-item">
-            <span class="sched-time-label">Start Time</span>
-            <span class="sched-time-val">${fmtTime(start)}</span>
+            <span class="sched-time-label">${played ? 'Played' : 'Start Time'}</span>
+            <span class="sched-time-val">${fmtTime(played ? new Date(m.actualStartTime) : start)}</span>
           </div>
+          ${resultHTML}
         </div>
         <div class="sched-alliances">
           <div class="sched-alliance">
