@@ -328,7 +328,7 @@
 
   <!-- ── Current Event Match ────────────────────────────────────────── -->
   <div class="card" id="currentMatchCard">
-    <div class="card-label">On Field</div>
+    <div class="card-label">Last Recorded</div>
     <div class="card-body" id="currentMatchContent"><div class="empty-state">Loading…</div></div>
   </div>
 
@@ -480,10 +480,16 @@ function teamAlliance(match, teamNum) {
 
 function calcDelay(allMatches, sampleSize) {
   const played = allMatches.filter(m => isValidDate(m.actualStartTime) && isValidDate(m.startTime));
-  const recent = played.slice(-Math.max(sampleSize, 1));
+  if (!played.length) return { avgMs: 0, sampleCount: 0 };
+  // Only use matches from the same calendar day as the most recent played match
+  // (a new day always resets — first match of the day is assumed on time)
+  const lastDate = new Date(played[played.length - 1].actualStartTime).toDateString();
+  const sameDay  = played.filter(m => new Date(m.actualStartTime).toDateString() === lastDate);
+  const recent   = sameDay.slice(-Math.max(sampleSize, 1));
   if (!recent.length) return { avgMs: 0, sampleCount: 0 };
   const deltas = recent.map(m => new Date(m.actualStartTime) - new Date(m.startTime));
-  return { avgMs: deltas.reduce((a,b) => a+b, 0) / deltas.length, sampleCount: recent.length };
+  const avg = deltas.reduce((a,b) => a+b, 0) / deltas.length;
+  return { avgMs: Math.max(0, avg), sampleCount: recent.length };
 }
 
 function buildMatchInfo(m, teamNum, delayInfo) {
@@ -605,7 +611,7 @@ function renderRanking(rankEntry, totalTeams) {
 function renderCurrentMatch(currentEventMatch, totalEventMatches) {
   const el = document.getElementById('currentMatchContent');
   if (!currentEventMatch) {
-    el.innerHTML = '<div class="empty-state">No matches played at this event yet.</div>';
+    el.innerHTML = '<div class="empty-state">No match recorded in this event.</div>';
     return;
   }
   const total = totalEventMatches ? ` of ${totalEventMatches}` : '';
@@ -666,10 +672,13 @@ function renderNextMatch(nextMatch, delayInfo, isQueuing) {
   if (!nextMatch) { el.innerHTML = '<div class="empty-state">No upcoming matches scheduled.</div>'; stopCountdown(); return; }
 
   const { description, alliance, scheduledStart, estimatedStart } = nextMatch;
-  const delayMin   = Math.round(delayInfo.avgMs / 60_000);
-  const delayLabel = delayInfo.sampleCount > 0
-    ? `${delayMin >= 0 ? '+' : ''}${delayMin} min (last ${delayInfo.sampleCount})`
-    : 'no delay data';
+  const onTime  = delayInfo.avgMs === 0;
+  const delayMin = Math.round(delayInfo.avgMs / 60_000);
+  const delayLabel = onTime
+    ? 'On Time'
+    : delayInfo.sampleCount > 0
+      ? `+${delayMin} min (last ${delayInfo.sampleCount})`
+      : 'no delay data';
   const alLower = (alliance || '').toLowerCase();
 
   el.innerHTML = `
@@ -685,7 +694,7 @@ function renderNextMatch(nextMatch, delayInfo, isQueuing) {
       </div>
       <div class="time-row">
         <span class="t-label">Estimated <span class="delay-tag">${escHtml(delayLabel)}</span></span>
-        <span class="t-value">${fmtTime(estimatedStart)}</span>
+        <span class="t-value">${onTime ? fmtTime(scheduledStart) : fmtTime(estimatedStart)}</span>
       </div>
     </div>
     <div class="countdown-wrap">
@@ -693,7 +702,7 @@ function renderNextMatch(nextMatch, delayInfo, isQueuing) {
       <div class="countdown-sub" id="countdownSub">until estimated start</div>
     </div>
   `;
-  startCountdown(estimatedStart || scheduledStart);
+  startCountdown(onTime ? scheduledStart : (estimatedStart || scheduledStart));
 }
 
 // ── Following match ──────────────────────────────────────────────────
@@ -702,8 +711,8 @@ function renderFollowingMatch(followingMatch, delayInfo) {
   if (!followingMatch) { el.innerHTML = '<div class="empty-state">No match scheduled after next.</div>'; return; }
 
   const { description, alliance, scheduledStart, estimatedStart } = followingMatch;
-  const delayMin   = Math.round(delayInfo.avgMs / 60_000);
-  const alLower    = (alliance || '').toLowerCase();
+  const onTime  = delayInfo.avgMs === 0;
+  const alLower = (alliance || '').toLowerCase();
 
   el.innerHTML = `
     <div class="match-desc">${escHtml(description)}</div>
@@ -712,7 +721,7 @@ function renderFollowingMatch(followingMatch, delayInfo) {
       <div class="following-times">
         <span class="ft-label">Scheduled</span>
         <span class="ft-val">${fmtTime(scheduledStart)}</span>
-        <span class="ft-est">${estimatedStart ? '~' + fmtTime(estimatedStart) + ' est.' : ''}</span>
+        <span class="ft-est">${onTime ? 'On Time' : (estimatedStart ? '~' + fmtTime(estimatedStart) + ' est.' : '')}</span>
       </div>
     </div>
   `;
