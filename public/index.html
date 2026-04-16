@@ -873,7 +873,7 @@ function renderScheduleModal() {
         <div class="sched-times">
           <div class="sched-time-item">
             <span class="sched-time-label">${played ? 'Played' : 'Start Time'}</span>
-            <span class="sched-time-val">${fmtTime(played ? new Date(m.actualStartTime) : start)}</span>
+            <span class="sched-time-val">${(() => { const d = played ? new Date(m.actualStartTime) : start; return d ? d.toLocaleDateString([], { weekday: 'short' }) + ' ' + fmtTime(d) : '—'; })()}</span>
           </div>
           ${resultHTML}
         </div>
