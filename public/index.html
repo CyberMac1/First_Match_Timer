@@ -39,17 +39,18 @@
     .header {
       background: var(--card-bg); border: 1px solid var(--card-border);
       border-radius: var(--radius); padding: .65rem 1rem;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: .4rem;
+      display: flex; flex-direction: column; gap: .4rem;
     }
-    .header-main { display: flex; flex-direction: column; gap: .15rem; }
+    .header-top  { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+    .header-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
     .event-name  { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
     .team-name   { font-size: 1.25rem; font-weight: 800; line-height: 1.1; }
-    .ranking-bar {
-      display: flex; flex-wrap: wrap; gap: .35rem; align-items: center;
-      margin-top: .2rem;
+    .header-bottom {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: .4rem; flex-wrap: wrap;
     }
+    .ranking-bar { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+    .header-btns { display: flex; gap: .4rem; align-items: center; flex-shrink: 0; }
     .rank-chip {
       display: inline-flex; align-items: center; gap: .3rem;
       padding: .2rem .6rem; border-radius: 6px; font-size: .8rem; font-weight: 700;
@@ -57,7 +58,6 @@
     .rank-chip.rank-gold   { background: #ffd16622; border: 1px solid var(--yellow); color: var(--yellow); }
     .rank-chip.rank-normal { background: #ffffff11; border: 1px solid var(--card-border); color: var(--text); }
     .rank-chip.rank-muted  { background: transparent; border: 1px solid var(--card-border); color: var(--muted); }
-    .header-btns { display: flex; flex-direction: column; gap: .4rem; align-items: flex-end; justify-content: flex-start; }
 
     /* ── Buttons ──────────────────────────────────────────────────── */
     .btn {
@@ -300,18 +300,20 @@
 
   <!-- ── Header ─────────────────────────────────────────────────────── -->
   <header class="header">
-    <div class="header-main">
-      <div class="event-name" id="eventName">— Configure in Settings —</div>
-      <div class="team-name"  id="teamName">FRC Dashboard</div>
+    <div class="header-top">
+      <div class="header-main">
+        <div class="event-name" id="eventName">— Configure in Settings —</div>
+        <div class="team-name"  id="teamName">FRC Dashboard</div>
+      </div>
+      <button class="btn btn-primary" id="settingsBtn">⚙ Settings</button>
+    </div>
+    <div class="header-bottom">
       <div class="ranking-bar" id="rankingBar">
         <span class="rank-chip rank-muted">Ranking: —</span>
       </div>
-    </div>
-    <div class="header-btns">
-      <button class="btn btn-primary" id="settingsBtn">⚙ Settings</button>
-      <div style="display:flex;gap:.4rem">
+      <div class="header-btns">
         <button class="btn btn-schedule" id="scheduleBtn">☰ Schedule</button>
-        <button class="btn btn-ghost" id="refreshBtn">↻ Refresh</button>
+        <button class="btn btn-ghost"    id="refreshBtn">↻ Refresh</button>
       </div>
     </div>
   </header>
