@@ -12,6 +12,8 @@ A real-time web dashboard for FIRST Robotics Competition (FRC) teams to monitor 
 - **Next Match** — Bumper color (RED/BLUE), scheduled start time, estimated start time with delay calculation, and a live countdown timer
 - **Following Match** — The match after next: bumper color and estimated start time
 - **Queuing Alert** — The Next Match card glows orange with a pulsing "Queuing" badge when the field is within 2 matches of your team's next match
+- **Schedule View** — The "☰ Schedule" button opens a modal listing all upcoming team matches with short names (Q10, P3), scheduled and estimated times, and color-coded alliance rosters — your team is highlighted red or blue to match your bumper
+- **Practice Match Toggle** — Settings option to include practice matches in all dashboard cards and the schedule view
 - **Auto-Refresh** — Data refreshes automatically every 60 seconds with a visible countdown in the status bar
 - **Test Mode** — Simulate any prior match as "current" with a fake clock to verify dashboard behavior (enabled via `.env`)
 
@@ -95,6 +97,7 @@ Open the **⚙ Settings** panel in the dashboard and fill in:
 | Season Year | Competition year (e.g. `2026`) |
 | Event | Dropdown auto-populated from the API once team + season are entered |
 | Delay Sample Size | Number of recent matches used to calculate the schedule delay (default: 5) |
+| Show Practice Matches | Include practice matches in all dashboard cards and the schedule view (default: off) |
 
 API credentials are **not** in the settings UI — set them in `.env` only.
 
@@ -139,6 +142,7 @@ All calls go through the server proxy at `/api/frc/*` → `https://frc-api.first
 |---|---|
 | `GET /{season}/schedule/{event}/qual/hybrid` | Qualification schedule with actual start times |
 | `GET /{season}/schedule/{event}/playoff/hybrid` | Playoff schedule with actual start times |
+| `GET /{season}/schedule/{event}/practice/hybrid` | Practice schedule (fetched only when practice matches are enabled) |
 | `GET /{season}/events?teamNumber={team}` | All events a team is registered in (settings dropdown) |
 | `GET /{season}/events?eventCode={code}` | Event name and details for the header |
 | `GET /{season}/teams?teamNumber={team}` | Team name |
