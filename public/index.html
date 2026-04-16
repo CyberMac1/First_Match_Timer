@@ -65,8 +65,9 @@
       transition: filter .15s; white-space: nowrap;
     }
     .btn:hover { filter: brightness(1.2); }
-    .btn-ghost   { border: 1px solid var(--card-border); color: var(--text); }
-    .btn-primary { background: #2979ff22; border: 1px solid var(--blue); color: var(--blue); }
+    .btn-ghost    { border: 1px solid var(--card-border); color: var(--text); }
+    .btn-primary  { background: #2979ff22; border: 1px solid var(--blue); color: var(--blue); }
+    .btn-schedule { background: var(--green); border: 1px solid var(--green); color: #001a14; font-weight: 700; }
 
     /* ── Status bar ───────────────────────────────────────────────── */
     #statusBar {
@@ -309,7 +310,7 @@
     <div class="header-btns">
       <button class="btn btn-primary" id="settingsBtn">⚙ Settings</button>
       <div style="display:flex;gap:.4rem">
-        <button class="btn btn-ghost" id="scheduleBtn">☰ Schedule</button>
+        <button class="btn btn-schedule" id="scheduleBtn">☰ Schedule</button>
         <button class="btn btn-ghost" id="refreshBtn">↻ Refresh</button>
       </div>
     </div>
