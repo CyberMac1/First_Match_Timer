@@ -405,11 +405,6 @@
       </select>
     </div>
 
-    <div class="form-group">
-      <label>Delay Sample Size (last N matches)</label>
-      <input type="number" id="cfgDelaySample" placeholder="5" min="1" max="20" />
-    </div>
-
     <button class="btn-save" id="saveSettingsBtn">Save & Refresh</button>
   </div>
 </div>
@@ -433,7 +428,7 @@ const STORAGE_KEY = 'frc_dashboard_v1';
 const REFRESH_INTERVAL_MS = 60_000;
 
 function defaultConfig() {
-  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '', delaySample: 5 };
+  return { season: new Date().getFullYear(), eventCode: '', teamNumber: '' };
 }
 let cfg = Object.assign(defaultConfig(), loadConfig());
 function loadConfig() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } }
@@ -478,27 +473,11 @@ function teamAlliance(match, teamNum) {
   return t.station?.toLowerCase().startsWith('red') ? 'Red' : 'Blue';
 }
 
-function calcDelay(allMatches, sampleSize) {
-  const played = allMatches.filter(m => isValidDate(m.actualStartTime) && isValidDate(m.startTime));
-  if (!played.length) return { avgMs: 0, sampleCount: 0 };
-  // Only use matches from the same calendar day as the most recent played match
-  // (a new day always resets — first match of the day is assumed on time)
-  const lastDate = new Date(played[played.length - 1].actualStartTime).toDateString();
-  const sameDay  = played.filter(m => new Date(m.actualStartTime).toDateString() === lastDate);
-  const recent   = sameDay.slice(-Math.max(sampleSize, 1));
-  if (!recent.length) return { avgMs: 0, sampleCount: 0 };
-  const deltas = recent.map(m => new Date(m.actualStartTime) - new Date(m.startTime));
-  const avg = deltas.reduce((a,b) => a+b, 0) / deltas.length;
-  return { avgMs: Math.max(0, avg), sampleCount: recent.length };
-}
-
-function buildMatchInfo(m, teamNum, delayInfo) {
+function buildMatchInfo(m, teamNum) {
   if (!m) return null;
   const al  = teamAlliance(m, teamNum);
-  const sch = isValidDate(m.startTime) ? new Date(m.startTime) : null;
-  const est = sch ? new Date(sch.getTime() + delayInfo.avgMs) : null;
-  return { matchNumber: m.matchNumber, description: m.description, alliance: al,
-           scheduledStart: sch, estimatedStart: est };
+  const start = isValidDate(m.startTime) ? new Date(m.startTime) : null;
+  return { matchNumber: m.matchNumber, description: m.description, alliance: al, start };
 }
 
 function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
@@ -515,9 +494,6 @@ function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
   // Ranking
   const teamNum   = parseInt(cfg.teamNumber);
   const rankEntry = (rankingsData?.Rankings || []).find(r => r.teamNumber === teamNum);
-
-  // Delay
-  const delayInfo = calcDelay(allMatches, cfg.delaySample);
 
   // Team's matches
   const teamMatches = allMatches.filter(m => (m.teams||[]).some(t => t.teamNumber === teamNum));
@@ -557,8 +533,8 @@ function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
     };
   }
 
-  const nextMatch      = buildMatchInfo(teamMatches[nextIdx],      teamNum, delayInfo);
-  const followingMatch = buildMatchInfo(teamMatches[followingIdx], teamNum, delayInfo);
+  const nextMatch      = buildMatchInfo(teamMatches[nextIdx],      teamNum);
+  const followingMatch = buildMatchInfo(teamMatches[followingIdx], teamNum);
 
   // Queuing: team's next match is within 2 matches of the current field match
   // Compare positions in the merged allMatches list (handles qual→playoff boundary)
@@ -570,7 +546,7 @@ function processSchedule({ hybridData, teamData, eventData, rankingsData }) {
   const isQueuing = currentIdx >= 0 && nextIdx2 >= 0 && (nextIdx2 - currentIdx) <= 2;
 
   return { eventName, teamName, rankEntry, lastMatch, nextMatch, followingMatch,
-           currentEventMatch, delayInfo, teamMatches, isQueuing };
+           currentEventMatch, teamMatches, isQueuing };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -664,21 +640,14 @@ function renderLastMatch(lastMatch) {
 }
 
 // ── Next match ───────────────────────────────────────────────────────
-function renderNextMatch(nextMatch, delayInfo, isQueuing) {
+function renderNextMatch(nextMatch, isQueuing) {
   const card = document.getElementById('nextMatchCard');
   card.classList.toggle('card-queuing', !!isQueuing);
 
   const el = document.getElementById('nextMatchContent');
   if (!nextMatch) { el.innerHTML = '<div class="empty-state">No upcoming matches scheduled.</div>'; stopCountdown(); return; }
 
-  const { description, alliance, scheduledStart, estimatedStart } = nextMatch;
-  const onTime  = delayInfo.avgMs === 0;
-  const delayMin = Math.round(delayInfo.avgMs / 60_000);
-  const delayLabel = onTime
-    ? 'On Time'
-    : delayInfo.sampleCount > 0
-      ? `+${delayMin} min (last ${delayInfo.sampleCount})`
-      : 'no delay data';
+  const { description, alliance, start } = nextMatch;
   const alLower = (alliance || '').toLowerCase();
 
   el.innerHTML = `
@@ -689,29 +658,24 @@ function renderNextMatch(nextMatch, delayInfo, isQueuing) {
     <div class="bumper-display ${alLower}">${alliance ? alliance.toUpperCase() + ' BUMPERS' : '—'}</div>
     <div>
       <div class="time-row">
-        <span class="t-label">Scheduled</span>
-        <span class="t-value">${fmtTime(scheduledStart)}</span>
-      </div>
-      <div class="time-row">
-        <span class="t-label">Estimated <span class="delay-tag">${escHtml(delayLabel)}</span></span>
-        <span class="t-value">${onTime ? fmtTime(scheduledStart) : fmtTime(estimatedStart)}</span>
+        <span class="t-label">Start Time</span>
+        <span class="t-value">${fmtTime(start)}</span>
       </div>
     </div>
     <div class="countdown-wrap">
       <div class="countdown-digits ok" id="countdownDigits">— : — : —</div>
-      <div class="countdown-sub" id="countdownSub">until estimated start</div>
+      <div class="countdown-sub" id="countdownSub">until start</div>
     </div>
   `;
-  startCountdown(onTime ? scheduledStart : (estimatedStart || scheduledStart));
+  startCountdown(start);
 }
 
 // ── Following match ──────────────────────────────────────────────────
-function renderFollowingMatch(followingMatch, delayInfo) {
+function renderFollowingMatch(followingMatch) {
   const el = document.getElementById('followingMatchContent');
   if (!followingMatch) { el.innerHTML = '<div class="empty-state">No match scheduled after next.</div>'; return; }
 
-  const { description, alliance, scheduledStart, estimatedStart } = followingMatch;
-  const onTime  = delayInfo.avgMs === 0;
+  const { description, alliance, start } = followingMatch;
   const alLower = (alliance || '').toLowerCase();
 
   el.innerHTML = `
@@ -719,9 +683,8 @@ function renderFollowingMatch(followingMatch, delayInfo) {
     <div class="following-row">
       <div class="following-bumper ${alLower}">${alliance ? alliance.toUpperCase() + ' BUMPERS' : '—'}</div>
       <div class="following-times">
-        <span class="ft-label">Scheduled</span>
-        <span class="ft-val">${fmtTime(scheduledStart)}</span>
-        <span class="ft-est">${onTime ? 'On Time' : (estimatedStart ? '~' + fmtTime(estimatedStart) + ' est.' : '')}</span>
+        <span class="ft-label">Start Time</span>
+        <span class="ft-val">${fmtTime(start)}</span>
       </div>
     </div>
   `;
@@ -803,10 +766,10 @@ async function loadDashboard() {
     renderRanking(r.rankEntry, totalTeams);
     renderCurrentMatch(r.currentEventMatch, mergedSchedule.length);
     renderLastMatch(r.lastMatch);
-    renderNextMatch(r.nextMatch, r.delayInfo, r.isQueuing);
-    renderFollowingMatch(r.followingMatch, r.delayInfo);
+    renderNextMatch(r.nextMatch, r.isQueuing);
+    renderFollowingMatch(r.followingMatch);
 
-    cachedScheduleData = { teamMatches: r.teamMatches, delayInfo: r.delayInfo, teamNum: parseInt(cfg.teamNumber) };
+    cachedScheduleData = { teamMatches: r.teamMatches, teamNum: parseInt(cfg.teamNumber) };
     populateTestDropdown(r.teamMatches);
 
     const ts = getCurrentTime().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -821,7 +784,7 @@ async function loadDashboard() {
 // ═══════════════════════════════════════════════════════════════════
 //  SCHEDULE MODAL
 // ═══════════════════════════════════════════════════════════════════
-let cachedScheduleData = null; // { teamMatches, delayInfo, teamNum }
+let cachedScheduleData = null; // { teamMatches, teamNum }
 
 function shortMatchName(m) {
   const level = (m.tournamentLevel || '').toLowerCase();
@@ -836,15 +799,14 @@ function renderScheduleModal() {
     el.innerHTML = '<div class="schedule-empty">No data loaded — refresh the dashboard first.</div>';
     return;
   }
-  const { teamMatches, delayInfo, teamNum } = cachedScheduleData;
+  const { teamMatches, teamNum } = cachedScheduleData;
   const upcoming = teamMatches.filter(m => !isValidDate(m.actualStartTime));
   if (!upcoming.length) {
     el.innerHTML = '<div class="schedule-empty">No upcoming matches.</div>';
     return;
   }
   el.innerHTML = upcoming.map(m => {
-    const sch = isValidDate(m.startTime) ? new Date(m.startTime) : null;
-    const est = sch ? new Date(sch.getTime() + delayInfo.avgMs) : null;
+    const start = isValidDate(m.startTime) ? new Date(m.startTime) : null;
     const red  = (m.teams || []).filter(t => t.station?.toLowerCase().startsWith('red'))
                                 .sort((a,b) => a.station.localeCompare(b.station));
     const blue = (m.teams || []).filter(t => t.station?.toLowerCase().startsWith('blue'))
@@ -855,13 +817,9 @@ function renderScheduleModal() {
         <div class="sched-badge">${escHtml(shortMatchName(m))}</div>
         <div class="sched-times">
           <div class="sched-time-item">
-            <span class="sched-time-label">Scheduled</span>
-            <span class="sched-time-val">${fmtTime(sch)}</span>
+            <span class="sched-time-label">Start Time</span>
+            <span class="sched-time-val">${fmtTime(start)}</span>
           </div>
-          ${est ? `<div class="sched-time-item">
-            <span class="sched-time-label">Estimated</span>
-            <span class="sched-time-val est">~${fmtTime(est)}</span>
-          </div>` : ''}
         </div>
         <div class="sched-alliances">
           <div class="sched-alliance">
@@ -998,9 +956,8 @@ function scheduleEventsFetch() {
 }
 
 function openSettings() {
-  document.getElementById('cfgTeamNumber').value  = cfg.teamNumber || '';
-  document.getElementById('cfgSeason').value      = cfg.season     || new Date().getFullYear();
-  document.getElementById('cfgDelaySample').value = cfg.delaySample || 5;
+  document.getElementById('cfgTeamNumber').value = cfg.teamNumber || '';
+  document.getElementById('cfgSeason').value     = cfg.season     || new Date().getFullYear();
 
   // Pre-populate event dropdown then mark the saved selection
   const sel = document.getElementById('cfgEventSelect');
@@ -1016,10 +973,9 @@ function closeSettings() { document.getElementById('settingsOverlay').classList.
 
 function saveSettings() {
   const sel = document.getElementById('cfgEventSelect');
-  cfg.season      = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
-  cfg.teamNumber  = document.getElementById('cfgTeamNumber').value.trim();
-  cfg.eventCode   = sel.value.trim().toUpperCase();
-  cfg.delaySample = parseInt(document.getElementById('cfgDelaySample').value) || 5;
+  cfg.season     = parseInt(document.getElementById('cfgSeason').value) || new Date().getFullYear();
+  cfg.teamNumber = document.getElementById('cfgTeamNumber').value.trim();
+  cfg.eventCode  = sel.value.trim().toUpperCase();
   saveConfig(); closeSettings(); loadDashboard();
 }
 
